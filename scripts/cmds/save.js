@@ -31,9 +31,9 @@ module.exports = {
     const fileContent = fs.readFileSync(filePath, "utf8");
 
     // Config GitHub
-    const GITHUB_TOKEN = "";//le token de ton GitHub 
-    const REPO_OWNER = "";//ton Nom d'utilisateurs
-    const REPO_NAME = "";//le nom de ton repositoire
+    const GITHUB_TOKEN = "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";//le token de ton GitHub 
+    const REPO_OWNER = "Hedgehog03";//ton Nom d'utilisateurs
+    const REPO_NAME = "HedgehogGPT";//le nom de ton repositoire
     const BRANCH = "main";
     const GITHUB_PATH = `scripts/cmds/${fileName}`;
     const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${GITHUB_PATH}`;
