@@ -30,10 +30,18 @@ function displayDamier(board) {
     for (let j = 0; j < 8; j++) {
       s += board[i][j] + " ";
     }
-    s += (-8])$/);
+    s += "\n";  // Correction ici : il manquait la fin de la ligne
+  }
+  return s;
+}
+
+function parseDamierMove(move) {
+  // Correction : regex correctement fermée et gérée
+  const regex = /^([a-h][1-8])\s+([a-h][1-8])$/i;
+  const match = move.match(regex);
   if (!match) return null;
   const pos = (p) => [8 - Number(p[1]), p.charCodeAt(0) - 97];
-  return [pos(match[1]), pos(match[2])];
+  return [pos(match[1].toLowerCase()), pos(match[2].toLowerCase())];
 }
 
 function isInside(x, y) {
@@ -46,27 +54,33 @@ function hasPieces(board, pion, dame) {
 
 function isValidMoveDamier(board, from, to, player) {
   const [fx, fy] = from, [tx, ty] = to;
-  const piece = board[fx][fy];
   if (!isInside(fx, fy) || !isInside(tx, ty)) return false;
+  const piece = board[fx][fy];
   if (board[tx][ty] !== EMPTY) return false;
 
   // Pion blanc
   if (piece === PION_B) {
     if (fx - tx === 1 && Math.abs(ty - fy) === 1) return true; // avance simple
-    if (fx - tx === 2 && Math.abs(ty - fy) === 2 &&
-        (board[fx-1][fy + (ty-fy)/2] === PION_N || board[fx-1][fy + (ty-fy)/2] === DAME_N)) return "prise";
+    if (fx - tx === 2 && Math.abs(ty - fy) === 2) {
+      const midX = fx - 1;
+      const midY = fy + (ty - fy) / 2;
+      if (board[midX][midY] === PION_N || board[midX][midY] === DAME_N) return "prise";
+    }
   }
   // Pion noir
   if (piece === PION_N) {
     if (tx - fx === 1 && Math.abs(ty - fy) === 1) return true;
-    if (tx - fx === 2 && Math.abs(ty - fy) === 2 &&
-        (board[fx+1][fy + (ty-fy)/2] === PION_B || board[fx+1][fy + (ty-fy)/2] === DAME_B)) return "prise";
+    if (tx - fx === 2 && Math.abs(ty - fy) === 2) {
+      const midX = fx + 1;
+      const midY = fy + (ty - fy) / 2;
+      if (board[midX][midY] === PION_B || board[midX][midY] === DAME_B) return "prise";
+    }
   }
   // Dame blanche
   if (piece === DAME_B) {
-    if (Math.abs(fx-tx) === Math.abs(fy-ty)) {
+    if (Math.abs(fx - tx) === Math.abs(fy - ty)) {
       const dx = tx > fx ? 1 : -1, dy = ty > fy ? 1 : -1;
-      let x = fx+dx, y = fy+dy, found = false;
+      let x = fx + dx, y = fy + dy, found = false;
       while (x !== tx && y !== ty) {
         if (board[x][y] === PION_N || board[x][y] === DAME_N) {
           if (found) return false; // déjà un pion à prendre
@@ -79,9 +93,9 @@ function isValidMoveDamier(board, from, to, player) {
   }
   // Dame noire
   if (piece === DAME_N) {
-    if (Math.abs(fx-tx) === Math.abs(fy-ty)) {
+    if (Math.abs(fx - tx) === Math.abs(fy - ty)) {
       const dx = tx > fx ? 1 : -1, dy = ty > fy ? 1 : -1;
-      let x = fx+dx, y = fy+dy, found = false;
+      let x = fx + dx, y = fy + dy, found = false;
       while (x !== tx && y !== ty) {
         if (board[x][y] === PION_B || board[x][y] === DAME_B) {
           if (found) return false;
@@ -110,7 +124,7 @@ function getAllLegalMoves(board, player) {
     for (let fy = 0; fy < 8; fy++) {
       if ([myPion, myDame].includes(board[fx][fy])) {
         for (let tx = 0; tx < 8; tx++) {
-          for (let ty = ty < 8; ty++) {
+          for (let ty = 0; ty < 8; ty++) {  // Correction ici : ty < 8 et non ty < 8 utilisé deux fois
             if ((fx !== tx || fy !== ty) && isValidMoveDamier(board, [fx, fy], [tx, ty], player === 0 ? "blanc" : "noir")) {
               moves.push([[fx, fy], [tx, ty]]);
             }
@@ -126,7 +140,10 @@ async function botPlay(game, api, threadID) {
   const board = game.board;
   const moves = getAllLegalMoves(board, 1);
   if (moves.length === 0) {
-    game.inProgress = false ${winner.name} remporte la partie (le bot ne peut plus jouer) !`,
+    game.inProgress = false;
+    const winner = game.players[0];
+    await api.sendMessage(
+      `${displayDamier(board)}\n\n🎉| ${winner.name} 𝚛𝚎𝚖𝚙𝚘𝚛𝚝𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎 !`,
       threadID
     );
     return;
@@ -139,7 +156,7 @@ async function botPlay(game, api, threadID) {
   board[tx][ty] = piece;
   board[fx][fy] = EMPTY;
   if (isValidMoveDamier(board, [fx, fy], [tx, ty], "noir") === "prise") {
-    board[(fx+tx)/2][(fy+ty)/2] = EMPTY;
+    board[(fx + tx) / 2][(fy + ty) / 2] = EMPTY;
   }
   checkPromotion(board);
 
@@ -149,7 +166,7 @@ async function botPlay(game, api, threadID) {
     game.inProgress = false;
     const winner = hasBlanc ? game.players[0] : game.players[1];
     await api.sendMessage(
-      `${displayDamier(board)}\n\n🎉| ${winner.name} remporte la partie !`,
+      `${displayDamier(board)}\n\n🎉| ${winner.name} 𝚁𝚎𝚖𝚙𝚘𝚛𝚝𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎 !`,
       threadID
     );
     return;
@@ -157,7 +174,7 @@ async function botPlay(game, api, threadID) {
 
   game.turn = 0;
   await api.sendMessage(
-    `${displayDamier(board)}\n\nÀ vous de jouer !`,
+    `${displayDamier(board)}\n\n𝙲'𝚎𝚜𝚝 𝚟𝚘𝚝𝚛𝚎 𝚝𝚘𝚞𝚛 !🔄`,
     threadID
   );
 }
@@ -177,34 +194,35 @@ module.exports = {
     const threadID = event.threadID;
     const senderID = event.senderID;
     let opponentID;
+    let playWithBot = false;
 
-    const mentionedIDs = Object.keys(event.mentions);
+    const mentionedIDs = event.mentions ? Object.keys(event.mentions) : [];
     if (mentionedIDs.length > 0) opponentID = mentionedIDs[0];
     else if (args[0] && /^\d+$/.test(args[0])) opponentID = args[0];
 
-    let play = false;
     if (!opponentID) playWithBot = true;
 
     if (opponentID && opponentID == senderID)
       return api.sendMessage("Vous ne pouvez pas jouer contre vous-même !", threadID, event.messageID);
 
+    // Récupération nom auteur via API
     let authorName = "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡";
     try {
       const authorResponse = await fetch('https://author-name.vercel.app/');
       const authorJson = await authorResponse.json();
       authorName = authorJson.author || authorName;
-    } catch (e) { /* ignore, garde Auteur inconnu */ }
+    } catch (e) { /* ignore */ }
 
     const gameID = playWithBot
       ? `${threadID}:${senderID}:BOT`
       : `${threadID}:${Math.min(senderID, opponentID)}:${Math.max(senderID, opponentID)}`;
 
     if (damierGames[gameID] && damierGames[gameID].inProgress)
-      return api.sendMessage("Une partie est déjà en cours entre ces joueurs.", threadID, event.messageID);
+      return api.sendMessage("❌| 𝚄𝚗𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚎𝚜𝚝 𝚍𝚎𝚓𝚊 𝚎𝚗 𝚌𝚘𝚞𝚛𝚜 𝚎𝚗𝚝𝚛𝚎 𝚍𝚎𝚜 𝚓𝚘𝚞𝚎𝚞𝚛𝚜. 𝚅𝚎𝚞𝚒𝚕𝚕𝚎𝚣 𝚙𝚊𝚝𝚒𝚎𝚗𝚝𝚎𝚛 ⏳.", threadID, event.messageID);
 
-    let player1Info, player2Info, botName = "🤖 Bot";
+    let player1Info, player2Info, botName = "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ";
     if (playWithBot) {
-      player1Info = await api.getUserInfo(senderID);
+      player1Info = await api.getUserInfo([senderID]);
       damierGames[gameID] = {
         board: createDamierBoard(),
         players: [
@@ -216,13 +234,14 @@ module.exports = {
         vsBot: true
       };
       api.sendMessage(
-        `🎲| Partie de dames entre ${player1Info[senderID].name} (⚪) et ${botName} (⚫) !\nAuteur : ${authorName}\n\n${displayDamier(damierGames[gameID].board)}\n\n${player1Info[senderID].name}, à vous de commencer (ex: b6 a5).`,
+        `📣| 𝙻𝚊𝚗𝚌𝚎𝚖𝚎𝚗𝚝 𝚍'𝚞𝚗𝚎 𝚗𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1Info[senderID].name} (⚪) 𝚎𝚝 ${botName} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1Info[senderID].name}, à 𝚟𝚘𝚞𝚜 𝚍𝚎 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚛 (𝚎𝚡: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚎𝚐𝚊𝚕𝚎𝚖𝚎𝚗𝚝 𝚜𝚊𝚒𝚜𝚒𝚛 𝚝𝚘𝚞𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 "𝚏𝚘𝚛𝚏𝚊𝚒𝚝" 𝚙𝚘𝚞𝚛 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 !`,
         threadID,
         event.messageID
       );
     } else {
-      player1Info = await api.getUserInfo(senderID);
-      player cet ID.", threadID, event.messageID);
+      player1Info = await api.getUserInfo([senderID]);
+      player2Info = await api.getUserInfo([opponentID]);
+      if (!player2Info[opponentID]) return api.sendMessage("Impossible de récupérer les infos du joueur invité.", threadID, event.messageID);
 
       damierGames[gameID] = {
         board: createDamierBoard(),
@@ -236,7 +255,7 @@ module.exports = {
       };
 
       api.sendMessage(
-        `🎲| Partie de dames entre ${player1Info[senderID].name} (⚪) et ${player2Info[opponentID].name} (⚫) !\nAuteur : ${authorName}\n\n${displayDamier(damierGames[gameID].board)}\n\n${player1Info[senderID].name}, à vous de commencer (ex: b6 a5).`,
+        `📣| 𝙻𝚊𝚗𝚌𝚎𝚖𝚎𝚗𝚝 𝚍'𝚞𝚗𝚎 𝚗𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1Info[senderID].name} (⚪) 𝚎𝚝 ${player2Info[opponentID].name} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1Info[senderID].name}, à 𝚟𝚘𝚞𝚜 𝚍𝚎 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚛 (𝚎𝚡: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚎𝚐𝚊𝚕𝚎𝚖𝚎𝚗𝚝 𝚜𝚊𝚒𝚜𝚒𝚛 𝚝𝚘𝚞𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 "𝚏𝚘𝚛𝚏𝚊𝚒𝚝" 𝚙𝚘𝚞𝚛 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 !`,
         threadID,
         event.messageID
       );
@@ -267,7 +286,7 @@ module.exports = {
     if (["forfait", "abandon"].includes(messageBody.toLowerCase())) {
       const opponent = game.players.find(p => p.id != senderID);
       game.inProgress = false;
-      return api.sendMessage(`🏳️| ${currentPlayer.name} a abandonné la partie. ${opponent.name} gagne !`, threadID);
+      return api.sendMessage(`🏳️| ${currentPlayer.name} 𝚊 𝚊𝚋𝚊𝚗𝚍𝚘𝚗𝚗é 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎. ${opponent.name} 𝚕𝚊 𝚛𝚎𝚖𝚙𝚘𝚛𝚝𝚎 🎉✨ !`, threadID);
     }
 
     if (["restart", "rejouer"].includes(messageBody.toLowerCase())) {
@@ -280,7 +299,7 @@ module.exports = {
         vsBot: game.vsBot
       };
       return api.sendMessage(
-        `🎲| Nouvelle partie de dames entre ${player1.name} (⚪) et ${player2.name} (⚫) !\n${displayDamier(damierGames[gameID].board)}\n\n${player1.name}, commencez (ex: b6 a5).`,
+        `📣| 𝙽𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1.name} (⚪) 𝚎𝚝 ${player2.name} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1.name}, 𝙲'𝚎𝚜𝚝 𝚟𝚘𝚞𝚜 𝚚𝚞𝚒 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚣 (ex: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚊𝚞𝚜𝚜𝚒 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 𝚎𝚗 𝚜𝚊𝚒𝚜𝚒𝚜𝚜𝚊𝚗𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 " 𝚏𝚘𝚛𝚏𝚊𝚒𝚝"`,
         threadID
       );
     }
@@ -308,15 +327,17 @@ module.exports = {
     board[tx][ty] = piece;
     board[fx][fy] = EMPTY;
     if (moveState === "prise") {
-      board[(fx+tx)/2][(fy+ty)/2] = EMPTY;
+      board[(fx + tx) / 2][(fy + ty) / 2] = EMPTY;
     }
     checkPromotion(board);
 
     const hasBlanc = hasPieces(board, PION_B, DAME_B);
     const hasNoir = hasPieces(board, PION_N, DAME_N);
-    if (!hasBlanc || ! ? game.players[0] : game.players[1];
+    if (!hasBlanc || !hasNoir) {
+      game.inProgress = false;
+      const winner = hasBlanc ? game.players[0] : game.players[1];
       return api.sendMessage(
-        `${displayDamier(board)}\n\n🎉| ${winner.name} remporte la partie !`,
+        `${displayDamier(board)}\n\n🎉| ${winner.name} 𝚛𝚎𝚖𝚙𝚘𝚛𝚝𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎  !`,
         threadID
       );
     }
@@ -326,7 +347,7 @@ module.exports = {
 
     if (game.vsBot && game.turn === 1) {
       await api.sendMessage(
-        `${displayDamier(board)}\n\n🤖 Bot réfléchit...`,
+        `${displayDamier(board)}\n\n➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ réfléchit...🤔`,
         threadID
       );
       setTimeout(async () => {
@@ -334,7 +355,7 @@ module.exports = {
       }, 1200);
     } else {
       api.sendMessage(
-        `${displayDamier(board)}\n\n${nextPlayer.name}, à vous de jouer !`,
+        `${displayDamier(board)}\n\n${nextPlayer.name}, 𝚌'𝚎𝚜𝚝 𝚟𝚘𝚝𝚛𝚎 𝚝𝚘𝚞𝚛 !🔄`,
         threadID
       );
     }
