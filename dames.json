@@ -1,0 +1,9 @@
+const fs = require('fs');
+
+function saveGames() {
+  fs.writeFileSync('damier.json', JSON.stringify(damierGames, null, 2));
+}
+
+function saveStats() {
+  fs.writeFileSync('damierStats.json', JSON.stringify(damierStats, null, 2));
+}
