@@ -4,7 +4,7 @@ const path = require('path');
 const moment = require('moment-timezone');
 
 const PREFIX = ['Sonic'];
-const ALLOWED_HUMANMOD_UIDS = ['61578090638036', '100090405019929'];
+const ALLOWED_HUMANMOD_UIDS = ['61578090638036', '61578433048588'];
 const API_KEY = 'fdl_uchiha_perdu_2025_secure';
 
 module.exports = {
