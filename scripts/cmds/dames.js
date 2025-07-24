@@ -1,249 +1,245 @@
-const fs = require('fs-extra');
-const path = require('path');
-const { createCanvas } = require('canvas');
+~cmd install dames.js
+const fetch = require('node-fetch');
 
-const DEFAULT_PIECES = {
-  blanc: { pion: "⚪", dame: "🔵" },
-  noir: { pion: "⚫", dame: "🔴" },
-  vide: "🔲" // Changed to make it clearer
-};
+const damierGames = {};
 
-let damierGames = {};
-// let playerPieces = {}; // No longer needed as it's not used
+const EMPTY = "🟩";
+const PION_B = "⚪";
+const PION_N = "⚫";
+const DAME_B = "🔵";
+const DAME_N = "🔴";
 
-function createDamierBoard(pieces = DEFAULT_PIECES) {
-  const board = Array.from({ length: 8 }, () => Array(8).fill(pieces.vide)); // Corrected syntax
+const playerStats = {};
+
+const DAMES_API_URL = "https://dames-api.vercel.app/"; // this API is critial, don't change this
+
+function createDamierBoard() {
+  const board = Array.from({ length: 8 }, () => Array(8).fill(EMPTY));
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 8; j++) {
-      if ((i + j) % 2 === 1) board[i][j] = pieces.noir.pion;
+      if ((i + j) % 2 === 1) board[i][j] = PION_N;
     }
   }
   for (let i = 5; i < 8; i++) {
     for (let j = 0; j < 8; j++) {
-      if ((i + j) % 2 === 1) board[i][j] = pieces.blanc.pion;
+      if ((i + j) % 2 === 1) board[i][j] = PION_B;
     }
   }
   return board;
 }
 
 function displayDamier(board) {
-  let s = "    𝚊 𝚋 𝚌 𝚍 𝚎 𝚏 𝚐 𝚑\n";
+  let s = "  a b c d e f g h\n";
   for (let i = 0; i < 8; i++) {
-    s += ` ${8 - i} `;
+    s += (8 - i) + " ";
     for (let j = 0; j < 8; j++) {
       s += board[i][j] + " ";
     }
-    s += ` ${8 - i}\n`;
+    s += "\n";
   }
-  s += "    𝚊 𝚋 𝚌 𝚍 𝚎 𝚏 𝚐 𝚑";
   return s;
 }
 
-function damierToImage(board, pieces, outPath) {
-  const size = 64; // Increased size for better clarity
-  const canvas = createCanvas(8 * size, 8 * size);
-  const ctx = canvas.getContext('2d');
-  for (let x = 0; x < 8; x++) {
-    for (let y = 0; y < 8; y++) { // Corrected inner loop
-      ctx.fillStyle = ((x + y) % 2 === 0) ? "#E6E6E6" : "#232323";
-      ctx.fillRect(y * size, x * size, size, size);
-      ctx.font = "bold 44px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const piece = board[x][y]; // Access piece correctly
-      if (piece !== pieces.vide) { // Only draw if not empty
-        ctx.fillText(piece, y * size + size / 2, x * size + size / 2);
-      }
-    }
-  }
-  const out = fs.createWriteStream(outPath);
-  const stream = canvas.createPNGStream(); // Corrected missing part
-  stream.pipe(out);
-  return new Promise(res => out.on('finish', () => res(outPath)));
-}
-
-async function sendBoardImage(api, threadID, messageText, board, pieces) { // Renamed 'message' to 'messageText' for clarity
-  const tmpDir = path.join(__dirname, "tmp");
-  await fs.ensureDir(tmpDir); // Ensure tmp directory exists
-  const imgPath = path.join(tmpDir, `damier_${Date.now()}_${Math.floor(Math.random() * 10000)}.png`);
-  try {
-    await damierToImage(board, pieces, imgPath); // Passed correct args
-    await api.sendMessage(
-      { body: messageText, attachment: fs.createReadStream(imgPath) }, // Use messageText here
-      threadID
-    );
-  } catch (error) {
-    console.error("Erreur lors de l'envoi de l'image du damier:", error);
-    await api.sendMessage("Désolé, une erreur est survenue lors de la génération de l'image du plateau.", threadID);
-  } finally {
-    if (fs.existsSync(imgPath)) {
-      await fs.unlink(imgPath).catch(err => console.error("Erreur lors de la suppression de l'image temporaire:", err));
-    }
-  }
-}
-
-function parseDamierMove(str) {
-  const match = str.trim().toLowerCase().match(/^([a-h][1-8])\s+([a-h][1-8])$/);
+function parseDamierMove(move) {
+  const regex = /^([a-h][1-8])\s+([a-h][1-8])$/i;
+  const match = move.match(regex);
   if (!match) return null;
   const pos = (p) => [8 - Number(p[1]), p.charCodeAt(0) - 97];
-  return [pos(match[1]), pos(match[2])];
+  return [pos(match[1].toLowerCase()), pos(match[2].toLowerCase())];
 }
 
-function isInside(x, y) { return x >= 0 && x < 8 && y >= 0 && y < 8; }
-function hasPieces(board, pion, dame) { return board.flat().some(cell => cell === pion || cell === dame); } // Fixed `has` part
+function isInside(x, y) {
+  return x >= 0 && x < 8 && y >= 0 && y < 8;
+}
 
-function isValidMoveDamier(board, from, to, playerColor, pieces) { // Renamed 'player' to 'playerColor' for clarity
+function hasPieces(board, pion, dame) {
+  return board.flat().some(cell => cell === pion || cell === dame);
+}
+
+function isValidMoveDamier(board, from, to, player) {
   const [fx, fy] = from, [tx, ty] = to;
-  const piece = board[fx][fy];
-  const isBlanc = playerColor === "blanc";
-  const myPion = isBlanc ? pieces.blanc.pion : pieces.noir.pion;
-  const myDame = isBlanc ? pieces.blanc.dame : pieces.noir.dame;
-  const oppPion = isBlanc ? pieces.noir.pion : pieces.blanc.pion;
-  const oppDame = isBlanc ? pieces.noir.dame : pieces.blanc.dame;
-
   if (!isInside(fx, fy) || !isInside(tx, ty)) return false;
-  if (piece !== myPion && piece !== myDame) return false; // Ensure it's the player's own piece
-  if (board[tx][ty] !== pieces.vide) return false; // Target square must be empty
+  const piece = board[fx][fy];
+  if (board[tx][ty] !== EMPTY) return false;
 
-  const dx = tx - fx;
-  const dy = ty - fy;
-
-  // Pawn moves
-  if (piece === myPion) {
-    // Simple move
-    if (Math.abs(dy) === 1 && Math.abs(dx) === 1) {
-      if ((isBlanc && dx === -1) || (!isBlanc && dx === 1)) { // Blanc moves up, Noir moves down
-        return true;
-      }
-    }
-    // Capture move
-    if (Math.abs(dy) === 2 && Math.abs(dx) === 2) {
-      const capturedX = fx + dx / 2;
-      const capturedY = fy + dy / 2;
-      const capturedPiece = board[capturedX][capturedY];
-      if ((capturedPiece === oppPion || capturedPiece === oppDame) &&
-          ((isBlanc && dx === -2) || (!isBlanc && dx === 2))) { // Corrected `typrise`
-        return "prise";
-      }
+  // Pion blanc
+  if (piece === PION_B) {
+    if (fx - tx === 1 && Math.abs(ty - fy) === 1) return true; // avance simple
+    if (fx - tx === 2 && Math.abs(ty - fy) === 2) {
+      const midX = fx - 1;
+      const midY = fy + (ty - fy) / 2;
+      if (board[midX][midY] === PION_N || board[midX][midY] === DAME_N) return "prise";
     }
   }
-
-  // Queen moves
-  if (piece === myDame) {
-    if (Math.abs(dx) === Math.abs(dy) && dx !== 0) {
-      const stepX = dx > 0 ? 1 : -1;
-      const stepY = dy > 0 ? 1 : -1;
-      let x = fx + stepX;
-      let y = fy + stepY;
-      let foundCaptured = false; // Renamed 'found' to avoid confusion
-
-      while (x !== tx || y !== ty) {
-        if (board[x][y] === myPion || board[x][y] === myDame) return false; // Blocked by own piece
-        if (board[x][y] === oppPion || board[x][y] === oppDame) {
-          if (foundCaptured) return false; // Cannot capture more than one piece
-          foundCaptured = true;
-        } else if (board[x][y] !== pieces.vide) return false; // Blocked by empty piece? No, should be empty
-        x += stepX;
-        y += stepY;
+  // Pion noir
+  if (piece === PION_N) {
+    if (tx - fx === 1 && Math.abs(ty - fy) === 1) return true;
+    if (tx - fx === 2 && Math.abs(ty - fy) === 2) {
+      const midX = fx + 1;
+      const midY = fy + (ty - fy) / 2;
+      if (board[midX][midY] === PION_B || board[midX][midY] === DAME_B) return "prise";
+    }
+  }
+  // Dame blanche
+  if (piece === DAME_B) {
+    if (Math.abs(fx - tx) === Math.abs(fy - ty)) {
+      const dx = tx > fx ? 1 : -1, dy = ty > fy ? 1 : -1;
+      let x = fx + dx, y = fy + dy, found = false;
+      while (x !== tx && y !== ty) {
+        if (board[x][y] === PION_N || board[x][y] === DAME_N) {
+          if (found) return false; // déjà un pion à prendre
+          found = true;
+        } else if (board[x][y] !== EMPTY) return false;
+        x += dx; y += dy;
       }
-      return foundCaptured ? "prise" : true;
+      return found ? "prise" : true;
+    }
+  }
+  // Dame noire
+  if (piece === DAME_N) {
+    if (Math.abs(fx - tx) === Math.abs(fy - ty)) {
+      const dx = tx > fx ? 1 : -1, dy = ty > fy ? 1 : -1;
+      let x = fx + dx, y = fy + dy, found = false;
+      while (x !== tx && y !== ty) {
+        if (board[x][y] === PION_B || board[x][y] === DAME_B) {
+          if (found) return false;
+          found = true;
+        } else if (board[x][y] !== EMPTY) return false;
+        x += dx; y += dy;
+      }
+      return found ? "prise" : true;
     }
   }
   return false;
 }
 
-function checkPromotion(board, pieces) {
+function checkPromotion(board) {
   for (let j = 0; j < 8; j++) {
-    if (board[0][j] === pieces.blanc.pion) board[0][j] = pieces.blanc.dame;
-    if (board[7][j] === pieces.noir.pion) board[7][j] = pieces.noir.dame;
+    if (board[0][j] === PION_B) board[0][j] = DAME_B;
+    if (board[7][j] === PION_N) board[7][j] = DAME_N;
   }
 }
 
-function getAllLegalMoves(board, playerTurn, pieces) { // Renamed 'player' to 'playerTurn' for clarity
+// Ancienne fonction getAllLegalMoves, renommée pour servir de fallback
+function getLocalLegalMoves(board, player) {
   const moves = [];
-  const myPion = playerTurn === 0 ? pieces.blanc.pion : pieces.noir.pion;
-  const myDame = playerTurn === 0 ? pieces.blanc.dame : pieces.noir.dame;
+  const myPion = player === 0 ? PION_B : PION_N;
+  const myDame = player === 0 ? DAME_B : DAME_N;
   for (let fx = 0; fx < 8; fx++) {
     for (let fy = 0; fy < 8; fy++) {
       if ([myPion, myDame].includes(board[fx][fy])) {
         for (let tx = 0; tx < 8; tx++) {
           for (let ty = 0; ty < 8; ty++) {
-            if (fx === tx && fy === ty) continue;
-            const moveState = isValidMoveDamier(board, [fx, fy], [tx, ty], playerTurn === 0 ? "blanc" : "noir", pieces); // Passed playerColor
-            if (moveState) {
-              moves.push([[fx, fy], [tx, ty], moveState]); // Store movestate for prioritization
+            // Utilise isValidMoveDamier pour vérifier la validité locale
+            if ((fx !== tx || fy !== ty) && isValidMoveDamier(board, [fx, fy], [tx, ty], player === 0 ? "blanc" : "noir")) {
+              moves.push([[fx, fy], [tx, ty]]);
             }
           }
         }
       }
     }
   }
-  const captureMoves = moves.filter(move => move[2] === "prise");
-  return captureMoves.length > 0 ? captureMoves : moves; // Prioritize captures
+  return moves;
 }
 
-function botBestMove(game, pieces) {
-  const moves = getAllLegalMoves(game.board, 1, pieces); // Bot is player 1 (noir)
-  if (moves.length === 0) return null;
-  let bestCapture = moves.find(move => move[2] === "prise"); // Find a capture move
-  if (bestCapture) return [bestCapture[0], bestCapture[1]]; // Return the [from, to] part
-  const simpleMoves = moves.filter(move => move[2] === true); // Filter for simple moves
-  if (simpleMoves.length > 0) {
-    return [simpleMoves[Math.floor(Math.random() * simpleMoves.length)][0], simpleMoves[Math.floor(Math.random() * simpleMoves.length)][1]]; // Random simple move
-  }
-  return [moves[0][0], moves[0][1]]; // Fallback, should not be reached if moves.length > 0
+// Nouvelle fonction getAllLegalMoves qui utilise l'API avec un fallback
+async function getAllLegalMoves(board, player) {
+    const playerColor = player === 0 ? "blanc" : "noir"; // L'API pourrait attendre "blanc" ou "noir"
+    try {
+        const response = await fetch(`${DAMES_API_URL}/moves`, { // Supposons un endpoint /moves
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ board: board, player: playerColor })
+        });
+
+        if (!response.ok) {
+            // Si la réponse n'est pas OK (ex: 404, 500), lancer une erreur
+            throw new Error(`API Dames - Erreur HTTP: ${response.status} ${response.statusText}`);
+        }
+
+        const apiMoves = await response.json();
+
+        // Vérifier si la réponse de l'API est dans le format attendu
+        // L'API devrait retourner un tableau de coups, où chaque coup est [[fromX, fromY], [toX, toY]]
+        if (Array.isArray(apiMoves) && apiMoves.every(m =>
+            Array.isArray(m) && m.length === 2 &&
+            Array.isArray(m[0]) && m[0].length === 2 &&
+            Array.isArray(m[1]) && m[1].length === 2
+        )) {
+            return apiMoves; // Retourne les coups de l'API
+        } else {
+            console.error("API Dames - Format de réponse inattendu. Retour à la logique locale.");
+            return getLocalLegalMoves(board, player); // Fallback
+        }
+    } catch (error) {
+        console.error("API Dames - Échec de l'appel API:", error.message);
+        return getLocalLegalMoves(board, player); // Fallback en cas d'erreur réseau ou autre
+    }
 }
 
-function checkWinCondition(board, pieces, game) {
-  const hasBlanc = hasPieces(board, pieces.blanc.pion, pieces.blanc.dame);
-  const hasNoir = hasPieces(board, pieces.noir.pion, pieces.noir.dame);
 
-  if (!hasBlanc) return game.players.find(p => p.color === "noir"); // Noir wins
-  if (!hasNoir) return game.players.find(p => p.color === "blanc"); // Blanc wins
-  return null;
-}
+async function botPlay(game, api, threadID) {
+  const board = game.board;
+  // Appelle la nouvelle fonction getAllLegalMoves qui utilise l'API
+  const moves = await getAllLegalMoves(board, 1);
 
-async function botPlay(game, api, threadID, getLang) { // Added getLang to params
-  const pieces = game.pieces || DEFAULT_PIECES;
-  const move = botBestMove(game, pieces);
-  if (!move) {
+  if (moves.length === 0) {
     game.inProgress = false;
-    await sendBoardImage(
-      api, threadID,
-      getLang("dames.botNoMoreMoves", game.players[0].name), // Use getLang
-      game.board, pieces
+    const winner = game.players[0];
+
+    // Mise à jour des stats
+    if (!playerStats[winner.id]) playerStats[winner.id] = { wins: 0, losses: 0 };
+    playerStats[winner.id].wins++;
+    const botPlayer = game.players[1];
+    if (!playerStats[botPlayer.id]) playerStats[botPlayer.id] = { wins: 0, losses: 0 };
+    playerStats[botPlayer.id].losses++;
+
+    await api.sendMessage(
+      `${displayDamier(board)}\n\n🎉| ${winner.name} 𝚛𝚎𝚖𝚙𝚘𝚛𝚝𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎 !`,
+      threadID
     );
-    delete damierGames[game.gameID]; // Delete game after end
     return;
   }
-  const [[fx, fy], [tx, ty]] = move;
-  const piece = game.board[fx][fy];
-  const moveState = isValidMoveDamier(game.board, [fx, fy], [tx, ty], "noir", pieces); // Re-check movestate for capture
+  let botMove = moves.find(([from, to]) => isValidMoveDamier(board, from, to, "noir") === "prise");
+  if (!botMove) botMove = moves[0];
 
-  game.board[tx][ty] = piece;
-  game.board[fx][fy] = pieces.vide;
-  if (moveState === "prise") {
-    game.board[(fx + tx) / 2][(fy + ty) / 2] = pieces.vide;
+  const [[fx, fy], [tx, ty]] = botMove;
+  const piece = board[fx][fy];
+  board[tx][ty] = piece;
+  board[fx][fy] = EMPTY;
+  // Note: isValidMoveDamier est toujours utilisée ici pour la logique de "prise" après avoir obtenu le coup.
+  // Si l'API renvoyait déjà le statut de prise, cette partie pourrait être simplifiée.
+  if (isValidMoveDamier(board, [fx, fy], [tx, ty], "noir") === "prise") {
+    board[(fx + tx) / 2][(fy + ty) / 2] = EMPTY;
   }
-  checkPromotion(game.board, pieces);
+  checkPromotion(board);
 
-  const winner = checkWinCondition(game.board, pieces, game); // Use checkWinCondition
-  if (winner) {
+  const hasBlanc = hasPieces(board, PION_B, DAME_B);
+  const hasNoir = hasPieces(board, PION_N, DAME_N);
+  if (!hasBlanc || !hasNoir) {
     game.inProgress = false;
-    await sendBoardImage(
-      api, threadID,
-      getLang("dames.winnerMessage", winner.name), // Use getLang
-      game.board, pieces
+    const winner = hasBlanc ? game.players[0] : game.players[1];
+    const loser = hasBlanc ? game.players[1] : game.players[0];
+
+    // Mise à jour des stats
+    if (!playerStats[winner.id]) playerStats[winner.id] = { wins: 0, losses: 0 };
+    playerStats[winner.id].wins++;
+    if (!playerStats[loser.id]) playerStats[loser.id] = { wins: 0, losses: 0 };
+    playerStats[loser.id].losses++;
+
+    await api.sendMessage(
+      `${displayDamier(board)}\n\n🎉| ${winner.name} 𝚁𝚎𝚖𝚙𝚘𝚛𝚝𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎 !`,
+      threadID
     );
-    delete damierGames[game.gameID]; // Delete game after end
     return;
   }
 
   game.turn = 0;
-  await sendBoardImage(
-    api, threadID,
-    getLang("dames.nextTurn", game.players[0].name), // Use getLang and specify next player
-    game.board, pieces
+  await api.sendMessage(
+    `${displayDamier(board)}\n\n𝙲'𝚎𝚜𝚝 𝚟𝚘𝚝𝚛𝚎 𝚝𝚘𝚞𝚛 !🔄`,
+    threadID
   );
 }
 
@@ -251,215 +247,266 @@ module.exports = {
   config: {
     name: "dames",
     aliases: ["damiers", "checkers"],
-    version: "2.0",
+    version: "1.1",
     author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡",
     category: "game",
-    shortDescription: { fr: "Jeu de dames avec images interactives et Bot.", en: "Checkers game with interactive images and Bot." },
-    longDescription: { fr: "Lance une partie de dames. Vous pouvez jouer contre un ami ou contre le Bot. Les déplacements se font via les coordonnées (ex: b6 a5).", en: "Starts a checkers game. You can play against a friend or the Bot. Moves are made using coordinates (e.g., b6 a5)." },
-    guide: { fr: "{p}dames @ami | {p}dames <ID> | {p}dames bot | {p}dames", en: "{p}checkers @friend | {p}checkers <ID> | {p}checkers bot | {p}checkers" }, // Added {p}dames for default
-    priority: 1,
-    cooldown: 5
+    shortDescription: "Jouez aux dames contre un ami ou le bot.",
+    usage: "dames @ami | dames <ID> | dames | dames help | dames stats | dames HedgehogGPT"
   },
 
-  onStart: async function ({ api, event, args, usersData, getLang }) { // Added usersData and getLang
+  onStart: async function ({ api, event, args }) {
     const threadID = event.threadID;
     const senderID = event.senderID;
-    let opponentID;
+    let opponentID = null;
     let playWithBot = false;
+    let botName = "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ";
 
-    if (args.length > 0 && args[0].toLowerCase() === "bot") {
-      playWithBot = true;
-    } else if (Object.keys(event.mentions).length > 0) {
-      opponentID = Object.keys(event.mentions)[0];
+    // Initialiser les stats du joueur s'il n'existe pas
+    if (!playerStats[senderID]) {
+        playerStats[senderID] = { wins: 0, losses: 0 };
+    }
+
+    const mentionedIDs = event.mentions ? Object.keys(event.mentions) : [];
+    const commandArgs = args.map(arg => arg.toLowerCase());
+
+    // Condition pour le message de bienvenue si "dames" est appelé sans arguments spécifiques
+    if (args.length === 0 || (args.length === 1 && args[0].toLowerCase() === "dames")) { // Vérifie si la commande est juste "dames"
+        return api.sendMessage(
+            `👋| 𝙱𝚒𝚎𝚗𝚟𝚎𝚗𝚞 𝚊𝚞 𝚓𝚎𝚞 𝚍𝚎 𝙳𝚊𝚖𝚎𝚜 !\n` +
+            `\nPour commencer une partie :\n` +
+            `  •  Pour jouer contre moi (le bot) : tapez \`dames HedgehogGPT\`\n` +
+            `  •  Pour jouer contre un ami : tapez \`dames @nom_de_l_ami\` ou \`dames <son_ID>\`\n` +
+            `\nUne fois la partie lancée, pour faire un coup : \`case_départ case_arrivée\` (ex: b6 a5).\n` +
+            `\nPour plus d'aide : \`dames help\`\n` +
+            `Pour voir vos statistiques : \`dames stats\`\n` +
+            `\n━━━━━━━━❪❐❫━━━━━━━━\n` +
+            `Amusez-vous bien ! 🎲`,
+            threadID,
+            event.messageID
+        );
+    }
+
+    if (commandArgs.includes("hedgehoggpt")) {
+        playWithBot = true;
+    } else if (mentionedIDs.length > 0) {
+        opponentID = mentionedIDs[0];
     } else if (args[0] && /^\d+$/.test(args[0])) {
-      opponentID = args[0];
+        opponentID = args[0];
     }
 
-    if (playWithBot === false && (!opponentID || opponentID === senderID)) {
-      return api.sendMessage(getLang("dames.noOpponent"), threadID, event.messageID); // Use getLang
+
+    if (opponentID && opponentID == senderID) {
+      return api.sendMessage("Vous ne pouvez pas jouer contre vous-même !", threadID, event.messageID);
     }
 
-    const pieces = DEFAULT_PIECES; // Removed playerPieces usage for simplicity
+    // Récupération nom auteur via API (maintenu tel quel)
+    let authorName = "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝚇𝙴 3.0★彡";
+    try {
+      const authorResponse = await fetch('https://author-name.vercel.app/');
+      const authorJson = await authorResponse.json();
+      authorName = authorJson.author || authorName;
+    } catch (e) { /* ignore */ }
+
+
+    // Déterminer le gameID de manière cohérente
     const gameID = playWithBot
       ? `${threadID}:${senderID}:BOT`
       : `${threadID}:${Math.min(senderID, opponentID)}:${Math.max(senderID, opponentID)}`;
-    if (damierGames[gameID] && damierGames[gameID].inProgress)
-      return api.sendMessage(getLang("dames.gameAlreadyInProgress"), threadID, event.messageID); // Use getLang
 
-    let player1Info, player2Info, botName = "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ";
+    if (damierGames[gameID] && damierGames[gameID].inProgress) {
+      return api.sendMessage("❌| 𝚄𝚗𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚎𝚜𝚝 𝚍𝚎𝚓𝚊 𝚎𝚗 𝚌𝚘𝚞𝚛𝚜 𝚎𝚗𝚝𝚛𝚎 𝚍𝚎𝚜 𝚓𝚘𝚞𝚎𝚞𝚛𝚜. 𝚅𝚎𝚞𝚒𝚕𝚕𝚎𝚣 𝚙𝚊𝚝𝚒𝚎𝚗𝚝𝚎𝚛 ⏳.", threadID, event.messageID);
+    }
+
+    let player1Info, player2Info;
     if (playWithBot) {
-      player1Info = await usersData.get(senderID) || (await api.getUserInfo(senderID))[senderID]; // Get user info
+      player1Info = await api.getUserInfo([senderID]);
       damierGames[gameID] = {
-        board: createDamierBoard(pieces),
+        board: createDamierBoard(),
         players: [
-          { id: senderID, name: player1Info.name, color: "blanc" },
+          { id: senderID, name: player1Info[senderID].name, color: "blanc" },
           { id: "BOT", name: botName, color: "noir" }
         ],
         turn: 0,
         inProgress: true,
         vsBot: true,
-        gameID: gameID, // Added gameID to game object
-        pieces
+        threadID: threadID
       };
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.startGameBot", damierGames[gameID].players[0].name, damierGames[gameID].players[1].name), // Use getLang
-        damierGames[gameID].board, pieces
+      // Initialiser les stats du bot s'il n'existe pas
+      if (!playerStats["BOT"]) {
+          playerStats["BOT"] = { wins: 0, losses: 0 };
+      }
+      api.sendMessage(
+        `📣| 𝙻𝚊𝚗𝚌𝚎𝚖𝚎𝚗𝚝 𝚍'𝚞𝚗𝚎 𝚗𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1Info[senderID].name} (⚪) 𝚎𝚝 ${botName} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1Info[senderID].name}, à 𝚟𝚘𝚞𝚜 𝚍𝚎 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚛 (𝚎𝚡: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚎𝚐𝚊𝚕𝚎𝚖𝚎𝚗𝚝 𝚜𝚊𝚒𝚜𝚒𝚛 𝚝𝚘𝚞𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 "𝚏𝚘𝚛𝚏𝚊𝚒𝚝" 𝚙𝚘𝚞𝚛 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 !`,
+        threadID,
+        event.messageID
       );
     } else {
-      player1Info = await usersData.get(senderID) || (await api.getUserInfo(senderID))[senderID];
-      player2Info = await usersData.get(opponentID) || (await api.getUserInfo(opponentID))[opponentID];
+      player1Info = await api.getUserInfo([senderID]);
+      player2Info = await api.getUserInfo([opponentID]);
+      if (!player2Info[opponentID]) return api.sendMessage("Impossible de récupérer les infos du joueur invité.", threadID, event.messageID);
 
-      if (!player1Info || !player2Info) { // Handle case where user info isn't found
-        return api.sendMessage(getLang("dames.playerNotFound"), threadID, event.messageID);
-      }
-      if (senderID === opponentID) { // Added check for playing against self
-        return api.sendMessage(getLang("dames.cannotPlaySelf"), threadID, event.messageID);
+      // Initialiser les stats de l'adversaire s'il n'existe pas
+      if (!playerStats[opponentID]) {
+          playerStats[opponentID] = { wins: 0, losses: 0 };
       }
 
       damierGames[gameID] = {
-        board: createDamierBoard(pieces),
+        board: createDamierBoard(),
         players: [
-          { id: senderID, name: player1Info.name, color: "blanc" },
-          { id: opponentID, name: player2Info.name, color: "noir" }
+          { id: senderID, name: player1Info[senderID].name, color: "blanc" },
+          { id: opponentID, name: player2Info[opponentID].name, color: "noir" }
         ],
         turn: 0,
         inProgress: true,
         vsBot: false,
-        gameID: gameID, // Added gameID to game object
-        pieces
+        threadID: threadID
       };
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.startGamePlayers", damierGames[gameID].players[0].name, damierGames[gameID].players[1].name), // Use getLang
-        damierGames[gameID].board, pieces
+
+      api.sendMessage(
+        `📣| 𝙻𝚊𝚗𝚌𝚎𝚖𝚎𝚗𝚝 𝚍'𝚞𝚗𝚎 𝚗𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1Info[senderID].name} (⚪) 𝚎𝚝 ${player2Info[opponentID].name} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1Info[senderID].name}, à 𝚟𝚘𝚞𝚜 𝚍𝚎 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚛 (𝚎𝚡: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚎𝚐𝚊𝚕𝚎𝚖𝚎𝚗𝚝 𝚜𝚊𝚒𝚜𝚒𝚛 𝚝𝚘𝚞𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 "𝚏𝚘𝚛𝚏𝚊𝚒𝚝" 𝚙𝚘𝚞𝚛 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 !`,
+        threadID,
+        event.messageID
       );
     }
   },
 
-  onChat: async function ({ api, event, message, getLang }) { // Added getLang to params
+  onChat: async function ({ api, event }) {
     const threadID = event.threadID;
     const senderID = event.senderID;
-    const messageBody = event.body.trim();
+    const messageBody = event.body.trim().toLowerCase();
 
+    // Vérifier les commandes globales (help, stats) avant de chercher une partie en cours
+    if (messageBody === "dames help") {
+        return api.sendMessage(
+            "📜| 𝙰𝚒𝚍𝚎 𝚙𝚘𝚞𝚛 𝚕𝚎 𝚓𝚎𝚞 𝚍𝚎 𝙳𝚊𝚖𝚎𝚜 :\n" +
+            "  •  `𝚍𝚊𝚖𝚎𝚜 HedgehogGPT` : 𝙻𝚊𝚗𝚌𝚎 𝚞𝚗𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚌𝚘𝚗𝚝𝚛𝚎 𝚕𝚎 𝚋𝚘𝚝.\n" +
+            "  •  `𝚍𝚊𝚖𝚎𝚜 @𝚖𝚘𝚗_𝚊𝚖𝚒` : 𝙻𝚊𝚗𝚌𝚎 𝚞𝚗𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚌𝚘𝚗𝚝𝚛𝚎 𝚞𝚗 𝚊𝚖𝚒 𝚖𝚎𝚗𝚝𝚒𝚘𝚗𝚗𝚎́.\n" +
+            "  •  `𝚍𝚊𝚖𝚎𝚜 <𝙸𝙳>` : 𝙻𝚊𝚗𝚌𝚎 𝚞𝚗𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚌𝚘𝚗𝚝𝚛𝚎 𝚞𝚗 𝚊𝚖𝚒 𝚙𝚊𝚛 𝚜𝚘𝚗 𝙸𝙳.\n" +
+            "  •  `𝚋𝟼 𝚊𝟻` : 𝙴𝚏𝚏𝚎𝚌𝚝𝚞𝚎 𝚞𝚗 𝚖𝚘𝚞𝚟𝚎𝚖𝚎𝚗𝚝. (𝙴𝚡𝚎𝚖𝚙𝚕𝚎 : 𝚍𝚎 𝚋𝟼 𝚟𝚎𝚛𝚜 𝚊𝟻)\n" +
+            "  •  `𝚏𝚘𝚛𝚏𝚊𝚒𝚝` : 𝙰𝚋𝚊𝚗𝚍𝚘𝚗𝚗𝚎 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎 𝚎𝚗 𝚌𝚘𝚞𝚛𝚜.\n" +
+            "  •  `𝚛𝚎𝚓𝚘𝚞𝚎𝚛` : 𝚁𝚎𝚕𝚊𝚗𝚌𝚎 𝚞𝚗𝚎 𝚗𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚊𝚟𝚎𝚌 𝚕𝚎𝚜 𝚖𝚎̂𝚖𝚎𝚜 𝚓𝚘𝚞𝚎𝚞𝚛𝚜.\n" +
+            "  •  `𝚍𝚊𝚖𝚎𝚜 𝚜𝚝𝚊𝚝𝚜` : 𝙰𝚏𝚏𝚒𝚌𝚑𝚎 𝚟𝚘𝚜 𝚜𝚝𝚊𝚝𝚒𝚜𝚝𝚒𝚚𝚞𝚎𝚜 𝚍𝚎 𝚓𝚎𝚞.\n" +
+            "━━━━━━━━❪❐❫━━━━━━━━",
+            threadID,
+            event.messageID
+        );
+    }
+
+    if (messageBody === "dames stats") {
+        const stats = playerStats[senderID];
+        if (stats) {
+            return api.sendMessage(
+                `📊| 𝚅𝚘𝚜 𝚜𝚝𝚊𝚝𝚒𝚜𝚝𝚒𝚚𝚞𝚎𝚜 :\n` +
+                `  •  𝚅𝚒𝚌𝚝𝚘𝚒𝚛𝚎𝚜 : ${stats.wins}\n` +
+                `  •  𝙳𝚎́𝚏𝚊𝚒𝚝𝚎𝚜 : ${stats.losses}\n` +
+                `━━━━━━━━❪❐❫━━━━━━━━`,
+                threadID,
+                event.messageID
+            );
+        } else {
+            return api.sendMessage(
+                `📊| 𝚅𝚘𝚞𝚜 𝚗'𝚊𝚟𝚎𝚣 𝚙𝚊𝚜 𝚎𝚗𝚌𝚘𝚛𝚎 𝚓𝚘𝚞𝚎́ 𝚍𝚎 𝚙𝚊𝚛𝚝𝚒𝚎𝚜. 𝙻𝚊𝚗𝚌𝚎𝚣-𝚟𝚘𝚞𝚜 !`,
+                threadID,
+                event.messageID
+            );
+        }
+    }
+
+    // Trouver la game correspondante (contre ami ou bot)
+    // On cherche une partie dans le thread actuel qui implique le senderID ou qui est contre le BOT
     const gameID = Object.keys(damierGames).find((id) =>
-      id.startsWith(`${threadID}:`) && (id.includes(senderID) || id.endsWith(':BOT'))
+        damierGames[id].threadID === threadID &&
+        (id.includes(senderID) || damierGames[id].players.some(p => p.id === senderID || p.id === "BOT"))
     );
-    if (!gameID) return;
+
+    if (!gameID) return; // Si aucune partie n'est trouvée pour ce joueur dans ce thread
     const game = damierGames[gameID];
-    if (!game.inProgress) return;
+    if (!game.inProgress) return; // La partie est terminée
+
     const board = game.board;
-    const pieces = game.pieces || DEFAULT_PIECES;
     const currentPlayer = game.players[game.turn];
 
-    if (!game.vsBot && senderID !== currentPlayer.id)
-      return; // Removed message to avoid spam
-    if (game.vsBot && game.turn === 1) return;
+    // Vérifier si le message vient du bon joueur et dans le bon thread
+    if (game.vsBot && game.turn === 1) { // C'est le tour du bot
+        // Le bot ne doit pas être "interrompu" par des messages de l'utilisateur
+        return; // Ignorer le message s'il n'est pas censé interagir avec le bot à ce moment
+    }
 
-    if (["forfait", "abandon"].includes(messageBody.toLowerCase())) {
-      const opponent = game.players.find(p => p.id !== senderID);
+    // Si ce n'est pas une partie bot ou si c'est le tour d'un humain
+    if (!game.vsBot && senderID != currentPlayer.id) {
+        return api.sendMessage(`Ce n'est pas votre tour !`, threadID, event.messageID);
+    }
+    // Si c'est le tour du joueur humain contre le bot, on continue
+    if (game.vsBot && senderID != currentPlayer.id) {
+        return; // Ce message ne vient pas du joueur actuel, ignorer
+    }
+
+
+    if (["forfait", "abandon"].includes(messageBody)) {
+      const opponent = game.players.find(p => p.id != senderID);
       game.inProgress = false;
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.playerForfeit", currentPlayer.name, opponent.name), // Use getLang
-        board, pieces
+
+      // Mise à jour des stats pour l'abandon
+      if (!playerStats[currentPlayer.id]) playerStats[currentPlayer.id] = { wins: 0, losses: 0 };
+      playerStats[currentPlayer.id].losses++;
+      if (!playerStats[opponent.id]) playerStats[opponent.id] = { wins: 0, losses: 0 };
+      playerStats[opponent.id].wins++;
+
+      return api.sendMessage(`🏳️| ${currentPlayer.name} 𝚊 𝚊𝚋𝚊𝚗𝚍𝚘𝚗𝚗é 𝚕𝚊 𝚙𝚊𝚛𝚝𝚒𝚎. ${opponent.name} 𝚕𝚊 𝚛𝚎𝚖𝚙𝚘𝚛𝚝𝚎 🎉✨ !`, threadID);
+    }
+
+    if (["restart", "rejouer"].includes(messageBody)) {
+      const [player1, player2] = game.players;
+      damierGames[gameID] = {
+        board: createDamierBoard(),
+        players: [player1, player2],
+        turn: 0,
+        inProgress: true,
+        vsBot: game.vsBot,
+        threadID: threadID
+      };
+      return api.sendMessage(
+        `📣| 𝙽𝚘𝚞𝚟𝚎𝚕𝚕𝚎 𝚙𝚊𝚛𝚝𝚒𝚎 𝚍𝚎 𝚍𝚊𝚖𝚎𝚜 𝚎𝚗𝚝𝚛𝚎 ${player1.name} (⚪) 𝚎𝚝 ${player2.name} (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\n${displayDamier(damierGames[gameID].board)}\n━━━━━━━━❪❐❫━━━━━━━━\n${player1.name}, 𝙲'𝚎𝚜𝚝 𝚟𝚘𝚞𝚜 𝚚𝚞𝚒 𝚌𝚘𝚖𝚖𝚎𝚗𝚌𝚎𝚣 (ex: b6 a5).\n📛| 𝚅𝚘𝚞𝚜 𝚙𝚘𝚞𝚟𝚎𝚣 𝚊𝚞𝚜𝚜𝚒 𝚜𝚝𝚘𝚙𝚙𝚎𝚛 𝚕𝚎 𝚓𝚎𝚞 𝚎𝚗 𝚜𝚊𝚒𝚜𝚒𝚜𝚜𝚊𝚗𝚝 𝚜𝚒𝚖𝚙𝚕𝚎𝚖𝚎𝚗𝚝 " 𝚏𝚘𝚛𝚏𝚊𝚒𝚝"`,
+        threadID
       );
-      delete damierGames[gameID]; // Delete game after end
-      return;
     }
 
     const move = parseDamierMove(messageBody);
     if (!move) {
-      return; // Removed message to avoid spam
+      return api.sendMessage(`Mouvement invalide. Utilisez la notation : b6 a5`, threadID, event.messageID);
     }
 
     const [[fx, fy], [tx, ty]] = move;
     const piece = board[fx][fy];
 
-    const isBlancTurn = game.turn === 0;
-    const myPion = isBlancTurn ? pieces.blanc.pion : pieces.noir.pion;
-    const myDame = isBlancTurn ? pieces.blanc.dame : pieces.noir.dame;
-
-    if (piece !== myPion && piece !== myDame) { // Corrected logic for checking own piece
-      return api.sendMessage(getLang("dames.notYourPiece"), threadID, event.messageID); // Use getLang
+    if (
+      (game.turn === 0 && ![PION_B, DAME_B].includes(piece)) ||
+      (game.turn === 1 && ![PION_N, DAME_N].includes(piece))
+    ) {
+      return api.sendMessage(`Vous ne pouvez déplacer que vos propres pions !`, threadID, event.messageID);
     }
 
-    const moveState = isValidMoveDamier(board, [fx, fy], [tx, ty], isBlancTurn ? "blanc" : "noir", pieces); // Passed correct player color
+    const moveState = isValidMoveDamier(board, [fx, fy], [tx, ty], game.turn === 0 ? "blanc" : "noir");
     if (!moveState) {
-      return api.sendMessage(getLang("dames.illegalMove"), threadID, event.messageID); // Use getLang
+      return api.sendMessage(`Coup illégal ou impossible.`, threadID, event.messageID);
     }
 
     board[tx][ty] = piece;
-    board[fx][fy] = pieces.vide;
+    board[fx][fy] = EMPTY;
     if (moveState === "prise") {
-      board[(fx + tx) / 2][(fy + ty) / 2] = pieces.vide;
+      board[(fx + tx) / 2][(fy + ty) / 2] = EMPTY;
     }
-    checkPromotion(board, pieces);
+    checkPromotion(board);
 
-    const winner = checkWinCondition(board, pieces, game); // Use checkWinCondition
-    if (winner) {
+    const hasBlanc = hasPieces(board, PION_B, DAME_B);
+    const hasNoir = hasPieces(board, PION_N, DAME_N);
+    if (!hasBlanc || !hasNoir) {
       game.inProgress = false;
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.winnerMessage", winner.name), // Use getLang
-        board, pieces
-      );
-      delete damierGames[gameID]; // Delete game after end
-      return;
-    }
+      const winner = hasBlanc ? game.players[0] : game.players[1];
+      const loser = hasBlanc ? game.players[1] : game.players[0];
 
-    game.turn = (game.turn + 1) % 2;
-
-    if (game.vsBot && game.turn === 1) {
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.botThinking", game.players[1].name), // Use getLang
-        board, pieces
-      );
-      setTimeout(() => botPlay(game, api, threadID, getLang), 1200); // Pass getLang
-    } else {
-      const nextPlayer = game.players[game.turn];
-      await sendBoardImage(
-        api, threadID,
-        getLang("dames.nextTurn", nextPlayer.name), // Use getLang
-        board, pieces
-      );
-    }
-  },
-  langs: { // Added langs object as it was missing
-    fr: {
-      "dames.gameAlreadyInProgress": "Une partie est déjà en cours entre ces joueurs. Veuillez la terminer ou en démarrer une autre.",
-      "dames.cannotPlaySelf": "Vous ne pouvez pas jouer contre vous-même.",
-      "dames.playerNotFound": "Impossible de trouver un ou plusieurs des joueurs mentionnés.",
-      "dames.noOpponent": "Veuillez mentionner un ami, saisir son identifiant ou taper 'bot' pour jouer contre le Bot.",
-      "dames.startGameBot": "📣| Début d'une partie de dames entre %1 (⚪) et %2 (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\nC'est à vous (⚪) de jouer (exemple : b6 a5).",
-      "dames.startGamePlayers": "📣| Début d'une partie de dames entre %1 (⚪) et %2 (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\nC'est à %1 (⚪) de jouer (exemple : b6 a5).",
-      "dames.playerForfeit": "🏳️| %1 abandonne. %2 remporte la partie.",
-      "dames.invalidMoveFormat": "Format de coup invalide. Utilisez 'collig lignel col2lig2' (ex: b6 a5).",
-      "dames.notYourPiece": "Vous pouvez déplacer uniquement vos propres pions.",
-      "dames.illegalMove": "Ce coup est illégal ou impossible.",
-      "dames.winnerMessage": "━━━━━━━━❪❐❫━━━━━━━━\n🎉| %1 remporte la partie !",
-      "dames.botNoMoreMoves": "━━━━━━━━❪❐❫━━━━━━━━\n🎉| %1 remporte la partie car le Bot ne peut plus jouer.",
-      "dames.botThinking": "━━━━━━━━❪❐❫━━━━━━━━\nLe Bot (%1) réfléchit...",
-      "dames.nextTurn": "━━━━━━━━❪❐❫━━━━━━━━\nC'est à %1 de jouer.",
-      "dames.gameOverNoPieces": "Fin de partie ! Le joueur %1 n'a plus de pièces.",
-    },
-    en: {
-      "dames.gameAlreadyInProgress": "A game is already in progress between these players. Please finish it or start another.",
-      "dames.cannotPlaySelf": "You cannot play against yourself.",
-      "dames.playerNotFound": "Could not find one or more of the mentioned players.",
-      "dames.noOpponent": "Please mention a friend, enter their ID, or type 'bot' to play against the Bot.",
-      "dames.startGameBot": "📣| Starting a checkers game between %1 (⚪) and %2 (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\nIt's your (⚪) turn (example: b6 a5).",
-      "dames.startGamePlayers": "📣| Starting a checkers game between %1 (⚪) and %2 (⚫) !\n━━━━━━━━❪❐❫━━━━━━━━\nIt's %1's (⚪) turn (example: b6 a5).",
-      "dames.playerForfeit": "🏳️| %1 forfeits. %2 wins the game.",
-      "dames.invalidMoveFormat": "Invalid move format. Use 'colrow col2row2' (e.g., b6 a5).",
-      "dames.notYourPiece": "You can only move your own pieces.",
-      "dames.illegalMove": "This move is illegal or impossible.",
-      "dames.winnerMessage": "━━━━━━━━❪❐❫━━━━━━━━\n🎉| %1 wins the game!",
-      "dames.botNoMoreMoves": "━━━━━━━━❪❐❫━━━━━━━━\n🎉| %1 wins the game because the Bot can no longer move.",
-      "dames.botThinking": "━━━━━━━━❪❐❫━━━━━━━━\nBot (%1) is thinking...",
-      "dames.nextTurn": "━━━━━━━━❪❐❫━━━━━━━━\nIt's %1's turn.",
-      "dames.gameOverNoPieces": "Game over! Player %1 has no more pieces.",
-    },
-  },
-};
+      // Mise à jour des stats de fin de partie
+      if (!playerStats[winner.id]) playerStats[winner.id] = { wins: 0, losses: 0 };
+      playerStats[winner.id].wins++;
+      if (!playerStats[loser.id]) playerStats[loser.id] = { wins: 0, losses: 0 };
+      playerStats[loser.id].losses++
