@@ -6,23 +6,22 @@ module.exports = {
     config: {
         name: "uptime",
         aliases: ["upt", "up"],
-        version: "1.1",
-        author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡", // don't change credits 
+        version: "1.2",
+        author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡",
         role: 0,
         shortDescription: {
-            en: "Displays bot uptime, system information, battery level, and current time in Cameroon."
+            en: "Displays bot uptime, system info, battery, RAM, CPU, users, and time in Cameroon."
         },
         longDescription: {
-            en: "Displays bot uptime, system information, CPU speed, storage usage, RAM usage, battery level, and current time in Cameroon."
+            en: "Displays bot uptime, system info, CPU speed and usage, RAM usage with visual bar, battery with bar, users, network interfaces, bot info, and current time in Cameroon."
         },
         category: "system",
         guide: {
-            en: "Use {p}uptime to display bot uptime, system information, battery level, and current time in Cameroon."
+            en: "Use {p}uptime to display bot/system info, battery, RAM, CPU, and time."
         }
     },
-    onStart: async function ({ api, event, prefix }) {
+    onStart: async function ({ api, event, prefix, commands }) {
         try {
-            // Appel à l'API pour obtenir l'auteur
             let authorMsg = "";
             try {
                 const resp = await axios.get("https://author-name.vercel.app/");
@@ -31,58 +30,90 @@ module.exports = {
                 authorMsg = "";
             }
 
-            // Simuler un système de batterie pour le bot
-            const batteryLevel = Math.floor(Math.random() * 101); // Niveau de batterie aléatoire entre 0 et 100
-            const lowBatteryThreshold = 20; // Seuil critique pour la batterie
-
-            // Vérifier si la batterie est faible
+            // Batterie visuelle
+            const batteryLevel = Math.floor(Math.random() * 101);
+            const lowBatteryThreshold = 20;
             const batteryStatus = batteryLevel <= lowBatteryThreshold
                 ? "⚠️ Batterie faible !"
                 : "✅ Batterie stable !";
+            const batteryBar = "🔋[" + "▮".repeat(Math.round(batteryLevel / 10)) + "▯".repeat(10 - Math.round(batteryLevel / 10)) + "]";
 
-            // Obtenir les temps d'uptime du bot et du serveur
+            // Uptime bot et serveur
             const botUptime = process.uptime();
             const serverUptime = os.uptime();
 
-            // Formater le temps d'uptime du bot
-            const botDays = Math.floor(botUptime / 86400);
-            const botHours = Math.floor((botUptime % 86400) / 3600);
-            const botMinutes = Math.floor((botUptime % 3600) / 60);
-            const botSeconds = Math.floor(botUptime % 60);
-            const botUptimeString = `♡   ∩_∩\n（„• ֊ •„)♡\n╭∪∪─⌾🌿𝗛𝗘𝗗𝗚𝗘𝗛𝗢𝗚🌿\n│𝐍𝐚𝐦𝐞:➣ ✘.𝚂𝙾𝙉𝙸𝙲〈 な\n│𝐏𝐫𝐞𝐟𝐢𝐱 𝐒𝐲𝐬𝐭𝐞𝐦: ${prefix}\n│𝐎𝐰𝐧𝐞𝐫:ミ𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄彡\n╰─────────⌾
-╭─⌾⏰𝗨𝗣𝗧𝗜𝗠𝗘⏰\n│🎶✨${botDays} days✨🎶\n│🎶✨${botHours} hours✨🎶\n│🎶✨${botMinutes} min✨🎶\n│🎶✨${botSeconds} sec✨🎶\n╰───────⌾`;
+            // Formatage
+            function formatUptime(sec) {
+                const days = Math.floor(sec / 86400);
+                const hours = Math.floor((sec % 86400) / 3600);
+                const minutes = Math.floor((sec % 3600) / 60);
+                const seconds = Math.floor(sec % 60);
+                return `${days}j ${hours}h ${minutes}m ${seconds}s`;
+            }
 
-            // Formater le temps d'uptime du serveur
-            const serverDays = Math.floor(serverUptime / 86400);
-            const serverHours = Math.floor((serverUptime % 86400) / 3600);
-            const serverMinutes = Math.floor((serverUptime % 3600) / 60);
-            const serverSeconds = Math.floor(serverUptime % 60);
-            const serverUptimeString = `\n╭─⌾🚀| 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣𝗧𝗜𝗠𝗘 \n│🔰✨${serverDays} days✨🔰\n│🔰✨${serverHours} hours✨🔰\n│🔰✨${serverMinutes} min✨🔰\n│🔰✨${serverSeconds} sec✨🔰\n╰───────⌾`;
-
-            // Obtenir l'utilisation de la mémoire et la vitesse CPU
-            const totalMem = os.totalmem() / (1024 * 1024 * 1024); // Convertir en Go
-            const freeMem = os.freemem() / (1024 * 1024 * 1024);   // Convertir en Go
+            // RAM bar
+            const totalMem = os.totalmem() / (1024 * 1024 * 1024);
+            const freeMem = os.freemem() / (1024 * 1024 * 1024);
             const usedMem = totalMem - freeMem;
+            const ramPercent = Math.round((usedMem / totalMem) * 100);
+            const ramBar = "🟩".repeat(Math.round(ramPercent / 10)) + "⬜".repeat(10 - Math.round(ramPercent / 10));
+
+            // CPU
             const cpuSpeed = os.cpus()[0].speed;
+            const cpuModel = os.cpus()[0].model;
+            const cpuUsage = os.loadavg()[0]; // sur 1 min
+            const cpuUsageBar = "🟦".repeat(Math.min(Math.round(cpuUsage * 2), 10)) + "⬜".repeat(10 - Math.min(Math.round(cpuUsage * 2), 10));
 
-            // Obtenir l'heure actuelle au Cameroun
-            const currentTime = moment.tz("Africa/Douala").format("YYYY-MM-DD HH:mm:ss");
+            // Utilisateurs connectés (info système)
+            let userInfo = "";
+            try {
+                const user = os.userInfo();
+                userInfo = `User: ${user.username}\nHome: ${user.homedir}`;
+            } catch (e) { userInfo = ""; }
 
-            // Construction du message de réponse
+            // Interfaces réseau
+            const net = os.networkInterfaces();
+            let netInfo = "";
+            Object.keys(net).forEach(iface => {
+                netInfo += `• ${iface}: `;
+                net[iface].forEach(n => {
+                    netInfo += `${n.family} ${n.address}${n.internal ? " (internal)" : ""} / `;
+                });
+                netInfo += "\n";
+            });
+
+            // Heure locale Cameroun et Paris (exemple multi fuseau)
+            const timeCM = moment.tz("Africa/Douala").format("YYYY-MM-DD HH:mm:ss");
+            const timeParis = moment.tz("Europe/Paris").format("YYYY-MM-DD HH:mm:ss");
+
+            // Infos bot
+            const nodeVersion = process.version;
+            const botVersion = module.exports.config.version;
+            const commandCount = commands ? Object.keys(commands).length : "-";
+
+            // Badge uptime : Ultra Uptime à partir de 2 jours !
+            let badge = "";
+            if (botUptime >= 86400 * 2) badge = "🏅 Ultra Uptime! 2+ days!";
+            else if (botUptime >= 86400) badge = "🥇 Uptime > 1 jour!";
+            else if (botUptime >= 3600) badge = "🥈 Uptime > 1 heure!";
+
+            // Construction du message
             const responseMessage =
                 (authorMsg ? `👤 Auteur: ${authorMsg}\n\n` : "") +
-                `${botUptimeString}
-${serverUptimeString}
-╭─⌾💾|𝗦𝗧𝗢𝗥𝗔𝗚𝗘\n│CPU Speed: ${cpuSpeed} Ko/s\n│Total Memory: ${totalMem.toFixed(2)} GB\n│Used Memory: ${usedMem.toFixed(2)} GB\n│Free Memory: ${freeMem.toFixed(2)} GB\n╰───────⌾
-╭─⌾🔋𝗕𝗔𝗧𝗧𝗘𝗥𝗬🔋\n│Battery Level: ${batteryLevel}%\n│Status: ${batteryStatus}\n╰───────⌾
-╭─⌾🕒 𝗧𝗜𝗠𝗘 🕒\n│${currentTime}\n╰───────⌾`;
+                `╭─⌾🤖 𝗕𝗢𝗧 𝗜𝗡𝗙𝗢\n│Nom: ✘.𝚂𝙾𝙽𝙸𝙲〈 な\n│Owner: ミ𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄彡\n│Préfixe: ${prefix}\n│Version Bot: ${botVersion}\n│Version Node: ${nodeVersion}\n│Commandes: ${commandCount}\n╰───────⌾\n` +
+                (badge ? `🎖️ ${badge}\n` : "") +
+                `╭─⌾⏰ 𝗨𝗣𝗧𝗜𝗠𝗘\n│Bot: ${formatUptime(botUptime)}\n│Serveur: ${formatUptime(serverUptime)}\n╰───────⌾\n` +
+                `╭─⌾💾 𝗠𝗘𝗠𝗢𝗥𝗬 & 𝗖𝗣𝗨\n│CPU: ${cpuModel} @ ${cpuSpeed}MHz\n│CPU Usage: ${cpuUsage.toFixed(2)} (barre: ${cpuUsageBar})\n│RAM Used: ${usedMem.toFixed(2)}GB / ${totalMem.toFixed(2)}GB (${ramPercent}%)\n│RAM: ${ramBar}\n╰───────⌾\n` +
+                `╭─⌾🔋 𝗕𝗔𝗧𝗧𝗘𝗥𝗬\n│Battery Level: ${batteryLevel}% ${batteryBar}\n│Status: ${batteryStatus}\n╰───────⌾\n` +
+                `╭─⌾🧑 𝗨𝗦𝗘𝗥\n│${userInfo}\n╰───────⌾\n` +
+                `╭─⌾🌐 𝗡𝗘𝗧𝗪𝗢𝗥𝗞\n${netInfo}╰───────⌾\n` +
+                `╭─⌾🕒 𝗧𝗜𝗠𝗘\n│Cameroun: ${timeCM}\n│Paris: ${timeParis}\n╰───────⌾`;
 
-            // Envoyer le message de réponse
             await api.sendMessage(responseMessage, event.threadID, event.messageID);
 
         } catch (error) {
             console.error("Error in uptime command:", error);
-            await api.sendMessage("❌ An error occurred while fetching uptime and battery information.", event.threadID, event.messageID);
+            await api.sendMessage("❌ An error occurred while fetching uptime and system info.", event.threadID, event.messageID);
         }
     }
 };
