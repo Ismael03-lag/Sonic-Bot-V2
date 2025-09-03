@@ -12,7 +12,7 @@ module.exports = {
   },
 
   async handleCommand({ message, event, args }) {
-    const permission = ["100090405019929"]; // ton ID ici
+    const permission = ["61578433048588"]; // ton ID ici
     if (!permission.includes(event.senderID)) {
       return message.reply("❌| 𝙲𝚑𝚎𝚟𝚊𝚕 𝚍𝚎 𝚃𝚛𝚘𝚒𝚎 𝚍𝚎𝚝𝚎𝚌𝚝é𝚎 𝚍𝚊𝚗𝚜 𝚟𝚘𝚝𝚛𝚎 𝚌𝚘𝚍𝚎 ! 𝙴𝚌𝚑𝚎𝚌 𝚍𝚎 𝚕𝚊 𝚜𝚊𝚞𝚟𝚎𝚐𝚊𝚛𝚍𝚎 𝚍𝚎 𝚕𝚊 𝚌𝚘𝚖𝚖𝚊𝚗𝚍𝚎.");
     }
@@ -31,8 +31,8 @@ module.exports = {
     const fileContent = fs.readFileSync(filePath, "utf8");
 
     // Config GitHub
-    const GITHUB_TOKEN = "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";//le token de ton GitHub 
-    const REPO_OWNER = "Hedgehog07";//ton Nom d'utilisateurs
+    const GITHUB_TOKEN = "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";//le token de ton GitHub 
+    const REPO_OWNER = "Sonic-Shisui";//ton Nom d'utilisateurs
     const REPO_NAME = "HedgehogGPT";//le nom de ton repositoire
     const BRANCH = "main";
     const GITHUB_PATH = `scripts/cmds/${fileName}`;
