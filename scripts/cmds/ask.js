@@ -154,7 +154,7 @@ module.exports = {
         const { threadID, messageID, body, senderID } = event;
         const threadData = activeThreads[threadID];
 
-        if (!threadData || Date.now() - threadData.lastActive > 10 * 60 * 1000 || threadData.userID !== senderID) return;
+        if (!threadData || Date.now() - threadData.lastActive > 2 * 60 * 1000 || threadData.userID !== senderID) return;
 
         try {
             const aiAnswer = await askAI(senderID, body);
