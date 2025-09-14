@@ -1,122 +1,145 @@
-const { getPrefix } = global.utils;
-const { commands, aliases } = global.GoatBot;
-
-// Fonction pour transformer un texte en police Bold Serif Unicode (𝐚, 𝐛, 𝐜, 𝐀, 𝐁, 𝐂, ...)
-function toBoldSerifFont(text) {
-  return text.split('').map(char => {
-    // minuscules
-    if (char >= 'a' && char <= 'z') {
-      return String.fromCodePoint(char.charCodeAt(0) - 0x61 + 0x1D41A);
-    }
-    // majuscules
-    if (char >= 'A' && char <= 'Z') {
-      return String.fromCodePoint(char.charCodeAt(0) - 0x41 + 0x1D400);
-    }
-    return char;
-  }).join('');
-}
+/**
+ * Commande: help (style BRAYAN BOT Unicode)
+ * ⚠️ Assurez-vous que le fichier est enregistré en UTF-8
+ */
 
 module.exports = {
   config: {
     name: "help",
-    version: "1.18",
-    author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡",
-    countDown: 5,
+    aliases: ["h", "menu"],
+    version: "2.3.0",
+    author: "chatgpt",
+    cooldown: 3,
+    role: 0,
     shortDescription: {
-      en: "View command usage and list all commands directly",
+      fr: "Affiche la liste des commandes avec style BRAYAN BOT"
     },
     longDescription: {
-      en: "View command usage and list all commands directly",
+      fr: "Menu d'aide avec catégories et style encadré Unicode, identique à l'exemple fourni."
     },
-    category: "info",
+    category: "système",
     guide: {
-      en: "{p}help cmdName ",
-    },
-    priority: 1,
-  },
-
-  onStart: async function ({ message, args, event, threadsData }) {
- 
-
-    const { threadID } = event;
-    const prefix = getPrefix(threadID);
-    const language = "en";
-
-    if (args.length === 0) {
-      const categories = {};
-      let msg = "";
-
-      // Rassemble les commandes par catégorie
-      for (const [name, value] of commands) {
-        const category = value.config.category || "Uncategorized";
-        if (!categories[category]) {
-          categories[category] = [];
-        }
-        categories[category].push(name);
-      }
-
-      // Formate les catégories et commandes en police bold serif
-      const formattedCategoriesList = Object.keys(categories).map(category => {
-        const boldSerifCategory = toBoldSerifFont(category.toUpperCase());
-        return { category, boldSerifCategory };
-      });
-
-      const formattedCommandsList = Object.entries(categories).map(([category, cmds]) => {
-        const boldSerifCommands = cmds.map(command => toBoldSerifFont(command));
-        return { category, boldSerifCommands };
-      });
-
-      // Génère le message final
-      for (const { category, boldSerifCategory } of formattedCategoriesList) {
-        if (category !== "info") {
-          let section = `\n╭─⊙『  ${boldSerifCategory}  』`;
-
-          const commandsForCategory = formattedCommandsList.find(cmd => cmd.category === category).boldSerifCommands;
-          for (let i = 0; i < commandsForCategory.length; i += 2) {
-            const cmds = commandsForCategory.slice(i, i + 2).map(item => `✧ ${item}`).join(" ");
-            section += `\n│${cmds}`;
-          }
-          section += `\n╰────────────⊙`;
-          msg += section;
-        }
-      }
-
-      await message.reply({ body: msg });
-    } else {
-      const commandName = args[0].toLowerCase();
-      const command = commands.get(commandName) || commands.get(aliases.get(commandName));
-
-      if (!command) {
-        await message.reply(`Command "${toBoldSerifFont(commandName)}" not found.`);
-      } else {
-        const configCommand = command.config;
-        const author = configCommand.author || "Unknown";
-
-        const longDescription = configCommand.longDescription
-          ? configCommand.longDescription[language] ||
-            configCommand.longDescription.en ||
-            "No description"
-          : "No description";
-
-        const guideBody = configCommand.guide?.[language] || configCommand.guide?.en || "No guide available.";
-        const usage = guideBody.replace(/{p}/g, prefix).replace(/{n}/g, configCommand.name);
-
-        // Tout en police bold serif
-        const boldSerifDescription = toBoldSerifFont(longDescription);
-        const boldSerifUsage = toBoldSerifFont(usage);
-        const boldSerifCommandName = toBoldSerifFont(configCommand.name);
-
-        const response = `
-╭───⊙
-  │ 🔶 ${boldSerifCommandName}
-  ├── INFO
-  │ 📝 𝗗𝗲𝘀𝗰𝗿𝗶𝗽𝘁𝗶𝗼𝗻: ${boldSerifDescription}
-  │ 👑 𝗔𝘂𝘁𝗵𝗼𝗿: ${toBoldSerifFont(author)}
-  │ ⚙️ 𝗚𝘂𝗶𝗱𝗲: ${boldSerifUsage}
-  ╰────────────⊙`;
-
-        await message.reply(response);
-      }
+      fr: "{pn} [catégorie|commande]"
     }
   },
+
+  onStart: async function (ctx) {
+    return runHelp(ctx);
+  },
+  run: async function (ctx) {
+    return runHelp(ctx);
+  }
 };
+
+async function runHelp(context) {
+  const { message, args = [], commandName = "help", prefix } = normalizeContext(context);
+  const registry = getRegistry();
+  if (!registry) return message.reply("❌ Impossible de lire le registre des commandes.");
+
+  if (args.length) {
+    const query = args.join(" ").trim();
+    const foundCommand = findCommand(registry, query);
+    if (foundCommand) return message.reply(formatCommandCard(foundCommand, { prefix }));
+
+    const byCat = groupByCategory(registry);
+    const catKey = Object.keys(byCat).find(k => k.toLowerCase() === query.toLowerCase());
+    if (catKey) return message.reply(formatCategoryMenu(catKey, byCat[catKey], { prefix, commandName }));
+
+    return message.reply(`🤔 Rien trouvé pour "${query}".`);
+  }
+
+  return message.reply(formatPagedMenu(registry, { prefix, commandName }));
+}
+
+function normalizeContext(ctx) {
+  const message = ctx.message || ctx.api?.sendMessage && {
+    reply: (m) => ctx.api.sendMessage(m, ctx.event?.threadID, ctx.event?.messageID)
+  } || { reply: () => {} };
+  return {
+    message,
+    args: ctx.args || ctx.event?.body?.split(/\s+/).slice(1) || [],
+    commandName: ctx.commandName || "help",
+    prefix: ctx.prefix || global.GoatBot?.config?.prefix || global.client?.config?.prefix || "+"
+  };
+}
+
+function getRegistry() {
+  const map = global.GoatBot?.commands || global.client?.commands;
+  if (!map) return null;
+  const list = [];
+  for (const [name, command] of map.entries()) {
+    const config = command.config || {};
+    list.push({ name: config.name || name, config, command });
+  }
+  return list;
+}
+
+function formatPagedMenu(registry, { prefix = "+", commandName = "help" }) {
+  const byCat = groupByCategory(registry);
+  let text = "╭━━⫷HELP LIST⫸━━╮\n\n";
+
+  for (const cat of Object.keys(byCat)) {
+    text += `╭─────⟪ ${cat.toUpperCase()} ⟫─────╮\n`;
+    for (const { name } of byCat[cat]) {
+      text += `┃ ✦ ${name}\n`;
+    }
+    text += "╰─────────────────╯\n\n";
+  }
+
+  text += `⫸ ${registry.length} commandes disponibles\n`;
+  text += `⫸ ${prefix}${commandName} [nom] pour plus d'info\n`;
+  text += `⫸ Problème ? Contactez l’admin via ${prefix}callad\n`;
+  text += "⫷ Brayan Ð-Grimɱ ⫸";
+  return text;
+}
+
+function formatCategoryMenu(category, items, { prefix = "+", commandName = "help" }) {
+  let text = `╭─────⟪ ${category.toUpperCase()} ⟫─────╮\n`;
+  for (const { name } of items) {
+    text += `┃ ✦ ${name}\n`;
+  }
+  text += "╰─────────────────╯\n";
+  text += `\n⫸ ${items.length} commandes dans ${category}\n`;
+  text += `⫸ Retour: ${prefix}${commandName}`;
+  return text;
+}
+
+function formatCommandCard(entry, { prefix = "+" }) {
+  const { name, config } = entry;
+  const desc = pickDesc(config) || "Aucune description.";
+  const usage = typeof config.guide === "string" ? config.guide : (config.guide?.fr || `{pn}`);
+  const guide = usage.replaceAll("{pn}", `${prefix}${name}`);
+  const aliases = Array.isArray(config.aliases) && config.aliases.length ? config.aliases.join(", ") : "—";
+  const role = config.role ?? 0;
+  const cooldown = config.cooldown ?? 0;
+  const category = config.category || "autre";
+
+  return `╭━━⫷ ${name.toUpperCase()} ⫸━━╮\n` +
+         `📖 Description: ${desc}\n` +
+         `📌 Utilisation: ${guide}\n` +
+         `🧩 Alias: ${aliases}\n` +
+         `⏳ Cooldown: ${cooldown}s\n` +
+         `🔒 Rôle requis: ${role}\n` +
+         `🗂️ Catégorie: ${category}\n` +
+         `╰━━━━━━━━━━━━━━━━━━╯`;
+}
+
+function groupByCategory(registry) {
+  return registry.reduce((acc, it) => {
+    const cat = (it.config.category || "autre").trim();
+    (acc[cat] ||= []).push(it);
+    return acc;
+  }, {});
+}
+
+function findCommand(registry, query) {
+  const q = query.toLowerCase();
+  return registry.find(({ name, config }) =>
+    name.toLowerCase() === q || (Array.isArray(config.aliases) && config.aliases.map(a => a.toLowerCase()).includes(q))
+  );
+}
+
+function pickDesc(config = {}) {
+  if (typeof config.shortDescription === "string") return config.shortDescription;
+  return config.shortDescription?.fr || config.shortDescription?.en || config.longDescription?.fr || config.longDescription?.en || "";
+}
