@@ -24,7 +24,7 @@ module.exports = {
         try {
             let authorMsg = "";
             try {
-                const resp = await axios.get("https://author-name-zeta.vercel.app/hedgehog07");
+                const resp = await axios.get("https://author-name-zeta.vercel.app/hedgehog03");
                 authorMsg = resp.data?.author || resp.data?.message || "";
             } catch (e) {
                 authorMsg = "";
