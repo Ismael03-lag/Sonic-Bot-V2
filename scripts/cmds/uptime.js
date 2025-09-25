@@ -7,7 +7,7 @@ module.exports = {
         name: "uptime",
         aliases: ["upt", "up"],
         version: "1.2",
-        author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄 3.0★彡",
+        author: "ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝚇𝙴 3.0★彡",
         role: 0,
         shortDescription: {
             en: "Displays bot uptime, system info, battery, RAM, CPU, users, and time in Cameroon."
@@ -24,7 +24,7 @@ module.exports = {
         try {
             let authorMsg = "";
             try {
-                const resp = await axios.get("https://author-name.vercel.app/");
+                const resp = await axios.get("https://author-name-zeta.vercel.app/hedgehog07");
                 authorMsg = resp.data?.author || resp.data?.message || "";
             } catch (e) {
                 authorMsg = "";
