@@ -32,7 +32,7 @@ module.exports = {
 
     // Config GitHub
     const GITHUB_TOKEN = "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";//le token de ton GitHub 
-    const REPO_OWNER = "Sonic-Shisui";//ton Nom d'utilisateurs
+    const REPO_OWNER = "Hedgehog07";//ton Nom d'utilisateurs
     const REPO_NAME = "HedgehogGPT";//le nom de ton repositoire
     const BRANCH = "main";
     const GITHUB_PATH = `scripts/cmds/${fileName}`;
