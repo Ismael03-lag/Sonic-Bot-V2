@@ -7,11 +7,11 @@
   "envCommands": {
     "daily": {
       "rewardDay1": {
-        "coin": 4000,
-        "exp": 100
+        "coin": 45754686870,
+        "exp": 58766788668
       },
       "rewardFirstDay": {
-        "coin": 10000,
+        "coin": 14850,
         "exp": 100
       }
     },
