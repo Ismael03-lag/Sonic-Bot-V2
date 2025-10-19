@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const serverURL = "https://cmdstore-api.onrender.com/";
+const serverURL = "https://cmdstore-api.vercel.app/api/commands";
 const ADMIN_UID = ["61578433048588"];
 
 function formatNumber(number) {
@@ -39,8 +39,8 @@ function getEmoji(category) {
 
 module.exports = {
   config: {
-    name: "store",
-    aliases: ["commandstore"],
+    name: "commandstore",
+    aliases: ["store"],
     version: "1.4",
     role: 0,
     shortDescription: { en: "Access the premium command store" },
@@ -59,7 +59,7 @@ module.exports = {
       const sub = args[0]?.toLowerCase();
 
       // ➤ LIST CATEGORIES
-      if (sub === "categories") {
+      if (sub === "category") {
         const response = await axios.get(`${serverURL}/api/commands`);
         const commands = response.data;
         const categories = [...new Set(commands.map(cmd => cmd.category).filter(Boolean))];
@@ -85,7 +85,7 @@ module.exports = {
       }
 
       // ➤ VIEW CART
-      if (sub === "cart") {
+      if (sub === "card") {
         const cartItems = global.GoatBot.cart[event.senderID] || [];
         if (!cartItems.length) return api.sendMessage("🛒 Your cart is empty.", event.threadID, event.messageID);
 
@@ -198,9 +198,9 @@ module.exports = {
 
       // ➤ ADMIN PUT / EDIT / DELETE
       if (ADMIN_UID.includes(event.senderID)) {
-        if (sub === "put") {
+        if (sub === "add") {
           const [itemName, price, category, ...descArr] = args.slice(1);
-          if (!itemName || !price || !category || !descArr.length) return api.sendMessage("⚠️ Usage: store put <name> <price> <category> <description>", event.threadID, event.messageID);
+          if (!itemName || !price || !category || !descArr.length) return api.sendMessage("⚠️ Usage: store add <name> <price> <category> <description>", event.threadID, event.messageID);
           const description = descArr.join(" ");
           await axios.post(`${serverURL}/api/commands`, { itemName, price: Number(price), category, description });
           return api.sendMessage(`✅ Command "${itemName}" added successfully.`, event.threadID, event.messageID);
