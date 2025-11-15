@@ -1,12 +1,14 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 const UPoLPrefix = ['Sonic'];
 
 module.exports = {
   config: {
     name: 'sonic',
-    version: '1.0.0',
-    author: "L'Uchiha Perdu",
+    version: '1.2.0',
+    author: "L'Uchiha Perdu & ʚʆɞ Sømå Sønïč ʚʆɞ",
     countDown: 5,
     role: 0,
     shortDescription: "Commande pour interagir avec l'IA.",
@@ -44,116 +46,75 @@ module.exports = {
 
   onStart: async function () {},
 
-  onChat: async function ({ message, event, api, threadID, messageID }) {
-    const ahprefix = UPoLPrefix.find((p) => event.body && event.body.toLowerCase().startsWith(p.toLowerCase()));
-    if (!ahprefix) return;
+  onChat: async function ({ message, event, api }) {
+    const prefix = UPoLPrefix.find(p => event.body?.toLowerCase().startsWith(p.toLowerCase()));
+    if (!prefix) return;
 
-    const query = event.body.substring(ahprefix.length).trim();
-    const userId = event.senderID;
+    const query = event.body.slice(prefix.length).trim();
+    const userId = event.senderID.toString();
 
-    let senderName = 'Utilisateur';
+    let name = 'Utilisateur';
     try {
-      const userInfo = await api.getUserInfo(userId);
-      if (userInfo && userInfo[userId] && userInfo[userId].name) {
-        senderName = userInfo[userId].name;
-      }
-    } catch (err) {}
+      const info = await api.getUserInfo(userId);
+      name = info[userId]?.name || name;
+    } catch {}
 
-    const creators = {
-      '61578433048588': { name: 'ʚʆɞ Sømå Sønïč ʚʆɞ', reason: 'ton créateur ultime qui t\'a donné vie et conçu l\'API.' },
-      '61563822463333': { name: 'L\'Uchiha Perdu', reason: 'ton créateur ultime qui t\'a donné vie et conçu l\'API.' },  
-      '61582101006304': { name: 'ʚʆɞ Gūɱbāll ʚʆɞ', reason: 'Subordonnée de ʚʆɞ Sømå Sønïč ʚʆɞ et L\'Uchiha Perdu.' }
+    if (!query && (!event.messageReply || event.messageReply.attachments?.[0]?.type !== 'photo')) {
+      return message.reply(`✧═════•❁❀❁•═════✧\nPose une question ${name} ! 😎\n✧═════•❁❀❁•═════✧`);
+    }
+
+    if (!this.conversationHistory[userId]) this.conversationHistory[userId] = [];
+
+    const payload = {
+      query,
+      key: 'fadil_boss_dev_uchiha',
+      name_user: name,
+      history: this.conversationHistory[userId].slice(-12),
+      uid: userId,
+      imageUrl: event.messageReply?.attachments?.[0]?.type === 'photo' ? event.messageReply.attachments[0].url : null
     };
 
-    let creatorInfo = '';
-    if (creators[userId]) {
-      creatorInfo = `Souviens-toi que ${senderName} est ${creators[userId].name}, ${creators[userId].reason} `;
+    let response = '', image = null;
+    try {
+      const res = await axios.post('https://uchiha-perdu-api-models.vercel.app/api', payload, { timeout: 120000 });
+      response = res.data.response || 'Pas de réponse...';
+      image = res.data.imageUrl;
+    } catch (e) {
+      response = 'IA en maintenance 5 sec frère !';
     }
 
-    if (!query) {
-      const styledResponse = `
-✧═════•❁❀❁•═════✧
-Pose une question, ${senderName} ! 😎
-✧═════•❁❀❁•═════✧
-`;
-      await message.reply(styledResponse);
-      return;
-    }
+    response = this.applyStyle(response);
 
-    if (!this.conversationHistory[userId]) {
-      this.conversationHistory[userId] = [];
-    }
+    this.conversationHistory[userId].push({ role: 'user', content: query || '[image]' });
+    this.conversationHistory[userId].push({ role: 'assistant', content: response });
+    if (this.conversationHistory[userId].length > 20) this.conversationHistory[userId].splice(0, 2);
 
-    let aiResponse;
-    let imageUrl = null;
+    const msg = `✧═════•❁❀❁•═════✧\n${response}\n✧═════•❁❀❁•═════✧`;
 
-    if (event.messageReply && event.messageReply.attachments && event.messageReply.attachments[0] && event.messageReply.attachments[0].type === 'photo') {
-      const imageReplyUrl = event.messageReply.attachments[0].url;
-      const analyzePrompt = query || 'Décris cette image en détail, comme un ami cool et sarcastique.';
+    if (image) {
       try {
-        const analyzeResponse = await axios.post(
-          'https://uchiha-perdu-analyze-api.vercel.app/api/analyze-image',
-          {
-            key: 'fdl_uchiha_perdu_2025_secure',
-            prompt: analyzePrompt,
-            imageUrl: imageReplyUrl
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
-        );
-        aiResponse = analyzeResponse.data.response || 'Erreur : pas de description.';
-      } catch (error) {
-        aiResponse = 'Erreur lors de l\'analyse de l\'image. Réessayez plus tard. 🚫';
-      }
-    } else {
-      this.conversationHistory[userId].push({ role: 'user', content: query });
-      try {
-        const response = await axios.post(
-          'https://uchiha-perdu-api-models.vercel.app/api',
-          {
-            query: creatorInfo + query,
-            key: 'fadil_boss_dev_uchiha',
-            ianame: 'HEDGEHOG GPT',
-            creator: 'ʚʆɞ Sømå Sønïč ʚʆɞ et L\'Uchiha Perdu et ʚʆɞ Gūɱbāll ʚʆɞ',
-            name_user: senderName,
-            history: this.conversationHistory[userId],
-            uid: userId.toString()
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
-        );
+        let attachment;
+        const tempFile = path.join(__dirname, `temp_${Date.now()}.png`);
 
-        aiResponse = response.data.response || 'Erreur : pas de réponse.';
-        imageUrl = response.data.imageUrl || null;
-      } catch (error) {
-        aiResponse = 'Erreur lors de l\'appel à l\'IA. Réessayez plus tard.';
-      }
-    }
+        if (image.startsWith('data:')) {
+          const base64Data = image.split(',')[1];
+          fs.writeFileSync(tempFile, Buffer.from(base64Data, 'base64'));
+        } else {
+          const dl = await axios.get(image, { responseType: 'arraybuffer', timeout: 120000 });
+          fs.writeFileSync(tempFile, Buffer.from(dl.data));
+        }
 
-    aiResponse = this.applyStyle(aiResponse);
-
-    this.conversationHistory[userId].push({ role: 'assistant', content: aiResponse });
-    if (this.conversationHistory[userId].length > 10) {
-      this.conversationHistory[userId].shift();
-    }
-
-    const styledResponse = `
-✧═════•❁❀❁•═════✧
-${aiResponse}
-✧═════•❁❀❁•═════✧
-`;
-
-    if (imageUrl) {
-      try {
-        const base64Data = imageUrl.split(';base64,').pop(); 
-        const buffer = Buffer.from(base64Data, 'base64');
-        await message.reply({
-          body: styledResponse,
-          attachment: buffer
+        attachment = fs.createReadStream(tempFile);
+        attachment.on('end', () => {
+          try { fs.unlinkSync(tempFile); } catch {}
         });
-      } catch (error) {
-        await message.reply(styledResponse + '\nErreur lors de l\'affichage de l\'image générée. Réessayez ! 🚫');
+
+        await message.reply({ body: msg, attachment });
+      } catch (e) {
+        await message.reply(msg + `\n\n[Image non affichée → ${image}]`);
       }
     } else {
-      await message.reply(styledResponse);
+      await message.reply(msg);
     }
   }
 };
