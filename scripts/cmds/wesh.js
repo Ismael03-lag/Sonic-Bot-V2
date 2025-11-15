@@ -6,23 +6,25 @@ const API_KEY = 'uchiha-perdu-storm';
 const API_URL = 'https://combat-storm.vercel.app';
 const IMAGE_URL = 'https://i.ibb.co/S4r4xpF0/file-0000000084f86243b7f327827bf6e062.png';
 
-const formatMessage = msg => `≪━─━─━─◈─━─━─━≫\n${msg}\n≪━─━─━─◈─━─━─━≫`;
+const formatMessage = (msg) => `≪━─━─━─◈─━─━─━≫\n${msg}\n≪━─━─━─◈─━─━─━≫`;
 
 function extractJSON(input) {
   if (!input) return null;
-  const str = typeof input === 'string' ? input : JSON.stringify(input);
-  try { return JSON.parse(str); } catch {}
-  const match = str.match(/\{[\s\S]*\}/);
-  if (match) try { return JSON.parse(match[0]); } catch {}
-  return null;
+  let str = typeof input === 'string' ? input : JSON.stringify(input);
+  try {
+    return JSON.parse(str);
+  } catch {
+    const match = str.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : null;
+  }
 }
 
 async function apiPost(url, data, headers = {}, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await axios.post(url, data, { headers, timeout: 60000 });
-      if (res.status === 200) return res;
-      throw new Error(`Status: ${res.status}`);
+      const response = await axios.post(url, data, { headers, timeout: 60000 });
+      if (response.status === 200) return response;
+      throw new Error(`Status: ${response.status}`);
     } catch (err) {
       if (i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, 2000));
@@ -33,7 +35,7 @@ async function apiPost(url, data, headers = {}, retries = 3) {
 module.exports = {
   config: {
     name: 'uchiha-storm',
-    version: '5.1.0',
+    version: '4.1.0',
     author: 'L’Uchiha Perdu',
     countDown: 5,
     role: 0,
@@ -45,50 +47,59 @@ module.exports = {
 
   onStart: async function ({ api, event, message, usersData, args }) {
     const { threadID, senderID } = event;
-    const userData = await usersData.get(senderID) || {};
+    let userData = await usersData.get(senderID) || {};
     const senderName = userData.name || 'Utilisateur';
     const prefix = global.GoatBot?.config?.prefix || '!';
     const stateDir = path.join(__dirname, 'cache');
     const stateFile = path.join(stateDir, `uchiha_storm_state_${threadID}.json`);
-    let state = { status: 'idle', players: {}, lastTime: Date.now(), history: [], characters: {}, charInfo: {}, stats: {}, processing: false, isAI: false, aiDifficulty: 'normal', storyMode: false };
+    let state = { status: 'idle', players: {}, lastTime: Date.now(), history: [], characters: {}, charInfo: {}, stats: {}, processing: false, isAI: false, aiDifficulty: 'normal' };
     await fs.ensureDir(stateDir);
 
     if (await fs.pathExists(stateFile)) {
-      try { state = JSON.parse(await fs.readFile(stateFile)); }
-      catch { state = { status: 'idle', lastTime: Date.now(), history: [], players: {}, characters: {}, charInfo: {}, stats: {}, processing: false, isAI: false, aiDifficulty: 'normal', storyMode: false }; }
-    } else await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-
-    if (state.status !== 'idle' && Date.now() - state.lastTime > 120000) {
-      const winner = state.currentTurn === 'player1' ? state.players.player2?.name || 'Joueur 2' : state.players.player1?.name || 'Joueur 1';
-      await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne !`));
-      await saveCombat(state, winner, threadID);
-      state.status = 'idle';
-      await fs.unlink(stateFile);
-      return;
+      try {
+        state = JSON.parse(await fs.readFile(stateFile));
+      } catch {
+        state = { status: 'idle', lastTime: Date.now(), history: [], players: {}, characters: {}, charInfo: {}, stats: {}, processing: false, isAI: false, aiDifficulty: 'normal' };
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      }
+    } else {
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
     }
 
     const command = args[0]?.toLowerCase() || '';
 
+    if (state.status !== 'idle' && Date.now() - (state.lastTime || 0) > 120000) {
+      const winner = state.currentTurn === 'player1'
+        ? (state.players.player2?.name || 'Joueur 2')
+        : (state.players.player1?.name || 'Joueur 1');
+      await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
+      await saveCombat(state, winner, threadID);
+      await fs.unlink(stateFile);
+      return;
+    }
+
     if (!command) {
       try {
         const img = await axios.get(IMAGE_URL, { responseType: 'stream' });
-        await message.reply({ body: formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`), attachment: img.data });
-      } catch { await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`)); }
+        await message.reply({
+          body: formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`),
+          attachment: img.data
+        });
+      } catch {
+        await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`));
+      }
       return;
     }
 
     if (command === 'menu') {
       await message.reply(formatMessage(
         `Menu Uchiha Storm :\n\n` +
-        `start : Combat humain\n` +
-        `start with AI : Vs IA\n` +
-        `start story : Mode histoire\n` +
-        `tournament create : Créer\n` +
-        `tournament join [ID]\n` +
-        `tournament start [ID]\n` +
-        `leaderboard\n` +
-        `stats [UID]\n` +
-        `stop`
+        `start : Lancer un combat PvP\n` +
+        `start ai [facile/normal/difficile] : Contre IA\n` +
+        `tournament create : Créer un tournoi\n` +
+        `tournament join [ID] : Rejoindre\n` +
+        `tournament start [ID] : Démarrer un tournoi\n` +
+        `stop : Arrêter la partie`
       ));
       return;
     }
@@ -96,34 +107,10 @@ module.exports = {
     if (command === 'stop') {
       if (state.status !== 'idle') {
         await message.reply(formatMessage(`Partie arrêtée par ${senderName} !`));
-        state.status = 'idle';
         await fs.unlink(stateFile);
-      } else await message.reply(formatMessage("Aucune partie."));
-      return;
-    }
-
-    if (command === 'leaderboard') {
-      try {
-        const res = await axios.get(`${API_URL}/leaderboard`, { headers: { 'x-api-key': API_KEY } });
-        const top = res.data.map((p, i) => `${i+1}. **${p._id}** : ${p.count} victoires`).join('\n') || 'Aucun';
-        await message.reply(formatMessage(`Classement :\n\n${top}`));
-      } catch { await message.reply(formatMessage(`Erreur classement`)); }
-      return;
-    }
-
-    if (command === 'stats' && args[1]) {
-      const uid = args[1].replace(/\D/g, '');
-      try {
-        const res = await axios.get(`${API_URL}/stats/${uid}`, { headers: { 'x-api-key': API_KEY } });
-        const { victories, defeats, ratio, characters } = res.data;
-        await message.reply(formatMessage(
-          `Stats <@${uid}> :\n\n` +
-          `Victoires : ${victories}\n` +
-          `Défaites : ${defeats}\n` +
-          `Ratio : ${ratio}\n` +
-          `Persos : ${characters.join(', ') || 'Aucun'}`
-        ));
-      } catch { await message.reply(formatMessage(`Aucune stat`)); }
+      } else {
+        await message.reply(formatMessage("Aucune partie en cours."));
+      }
       return;
     }
 
@@ -135,282 +122,321 @@ module.exports = {
           await message.reply(formatMessage(
             `Tournoi créé !\n\nID: ${tournamentID}\n` +
             `Rejoindre: ${prefix}${this.config.name} tournament join ${tournamentID}\n` +
-            `Démarrer: ${prefix}${this.config.name} tournament start ${tournamentID}`
+            `Démarrer: ${prefix}${this.config.name} tournament start ${tournamentID}\n` +
+            `Inscriptions ouvertes 5 min`
           ));
-        } catch { await message.reply(formatMessage(`Erreur création`)); }
+        } catch (err) {
+          await message.reply(formatMessage(`Erreur création tournoi`));
+        }
         return;
       }
+
       if (args[1] === 'join' && args[2]) {
         try {
           const res = await apiPost(`${API_URL}/tournament/join`, { tournamentID: args[2], uid: senderID, name: senderName }, { 'x-api-key': API_KEY });
           const players = res.data.players?.map(p => p.name).join(', ') || 'Aucun';
-          await message.reply(formatMessage(`Inscrit !\n\nJoueurs: ${players}`));
-        } catch { await message.reply(formatMessage(`Erreur inscription`)); }
+          await message.reply(formatMessage(`Vous avez rejoint !\n\nParticipants: ${players}`));
+        } catch (err) {
+          await message.reply(formatMessage(`Erreur inscription`));
+        }
         return;
       }
+
       if (args[1] === 'start' && args[2]) {
         try {
           const res = await apiPost(`${API_URL}/tournament/start`, { tournamentID: args[2] }, { 'x-api-key': API_KEY });
           await message.reply(formatMessage(`Tournoi démarré !\n\nBrackets: ${JSON.stringify(res.data.brackets)}`));
-        } catch { await message.reply(formatMessage(`Erreur démarrage`)); }
+        } catch (err) {
+          await message.reply(formatMessage(`Erreur démarrage tournoi`));
+        }
         return;
       }
-      await message.reply(formatMessage(`Commande invalide.`));
-      return;
     }
 
     if (command === 'start') {
-      if (args[1]?.toLowerCase() === 'with' && args[2]?.toLowerCase() === 'ai') {
-        state.players = { player1: { uid: senderID, name: senderName }, player2: { uid: 'AI', name: 'IA' } };
+      state.players = { player1: { uid: senderID, name: senderName } };
+      if (args[1] === 'ai') {
         state.isAI = true;
-        state.status = 'choosing_difficulty';
+        state.aiDifficulty = args[2]?.toLowerCase() || 'normal';
+        if (!['facile', 'normal', 'difficile'].includes(state.aiDifficulty)) state.aiDifficulty = 'normal';
+        state.players.player2 = { uid: 'AI', name: 'IA' };
+        state.status = 'choosing_char1';
         state.lastTime = Date.now();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
         await message.reply(formatMessage(
-          `${senderName} vs IA !\n\nDifficulté :\n• easy\n• normal\n• hard`
+          `${senderName} a lancé un combat contre l'IA (diff: ${state.aiDifficulty}) !\n\n` +
+          `Choisissez un personnage.`
         ));
-        return;
-      }
-      if (args[1]?.toLowerCase() === 'story') {
-        state.players = { player1: { uid: senderID, name: senderName }, player2: { uid: 'STORY', name: 'Narrateur' } };
-        state.isAI = true;
-        state.storyMode = true;
-        state.status = 'story_intro';
+      } else {
+        state.status = 'waiting_opponent';
         state.lastTime = Date.now();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Mode Histoire !\n\nChoisissez votre personnage.`));
-        return;
+        await message.reply(formatMessage(
+          `${senderName} a lancé un combat !\n\n` +
+          `Pour rejoindre :\n` +
+          `- Envoyez "join"\n` +
+          `- Ou taggez un adversaire\n` +
+          `- Ou envoyez son ID`
+        ));
       }
-      state.players = { player1: { uid: senderID, name: senderName } };
-      state.status = 'waiting_opponent';
-      state.lastTime = Date.now();
-      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-      await message.reply(formatMessage(
-        `${senderName} lance un combat !\n\nRejoignez avec "join" ou taggez.`
-      ));
       return;
     }
 
-    await message.reply(formatMessage(`Commande inconnue.`));
+    await message.reply(formatMessage(`Commande inconnue. Tapez "${prefix}${this.config.name} menu"`));
   },
 
   onChat: async function ({ event, api, message, usersData }) {
     if (!event.body) return;
     const { body, senderID, threadID, mentions } = event;
-    const userData = await usersData.get(senderID) || {};
+    let userData = await usersData.get(senderID) || {};
     const senderName = userData.name || 'Utilisateur';
     const stateDir = path.join(__dirname, 'cache');
     const stateFile = path.join(stateDir, `uchiha_storm_state_${threadID}.json`);
+    let state = { status: 'idle', players: {}, lastTime: Date.now(), history: [], characters: {}, charInfo: {}, stats: {}, processing: false, isAI: false, aiDifficulty: 'normal' };
+
     if (!await fs.pathExists(stateFile)) return;
-
-    let state;
-    try { state = JSON.parse(await fs.readFile(stateFile)); } catch { return; }
-    if (state.status === 'idle') return;
-    if (state.processing) return message.reply(formatMessage(`Traitement en cours.`));
-    state.processing = true;
-    await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-
     try {
-      if (Date.now() - state.lastTime > 120000) {
-        const winner = state.currentTurn === 'player1' ? state.players.player2?.name || 'Joueur 2' : state.players.player1?.name || 'Joueur 1';
-        await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne !`));
-        await saveCombat(state, winner, threadID);
-        state.status = 'idle';
-        await fs.unlink(stateFile);
-        return;
-      }
+      state = JSON.parse(await fs.readFile(stateFile));
+    } catch {
+      return;
+    }
 
-      if (['stop', 'forfait', 'fin'].includes(body.toLowerCase())) {
-        const winner = senderID === state.players.player1.uid ? state.players.player2?.name || 'Joueur 2' : state.players.player1?.name || 'Joueur 1';
-        await message.reply(formatMessage(`${senderName} abandonne !\n\n${winner} gagne !`));
-        await saveCombat(state, winner, threadID);
-        state.status = 'idle';
-        await fs.unlink(stateFile);
-        return;
-      }
+    if (state.status === 'idle') return;
 
-      if (body.toLowerCase() === 'join' && state.status === 'waiting_opponent') {
-        if (state.players.player1.uid === senderID) return message.reply(formatMessage("Pas contre vous-même."));
-        state.players.player2 = { uid: senderID, name: senderName };
-        state.status = 'choosing_char1';
-        state.lastTime = Date.now();
-        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`${senderName} a rejoint !\n\nJoueur 1, choisissez.`));
-        return;
-      }
+    if (Date.now() - (state.lastTime || 0) > 120000) {
+      const winner = state.currentTurn === 'player1'
+        ? (state.players.player2?.name || 'Joueur 2')
+        : (state.players.player1?.name || 'Joueur 1');
+      await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
+      await saveCombat(state, winner, threadID);
+      await fs.unlink(stateFile);
+      return;
+    }
 
-      if (state.status === 'waiting_opponent' && senderID === state.players.player1.uid) {
-        const opponentUID = Object.keys(mentions)[0] || body.trim().replace(/\D/g, '');
-        if (!opponentUID || opponentUID === senderID) return message.reply(formatMessage(`UID invalide.`));
+    if (['stop', 'forfait', 'fin'].includes(body.toLowerCase())) {
+      const winner = senderID === state.players.player1.uid
+        ? (state.players.player2?.name || 'Joueur 2')
+        : (state.players.player1?.name || 'Joueur 1');
+      await message.reply(formatMessage(`${senderName} abandonne !\n\n${winner} gagne par forfait !`));
+      await saveCombat(state, winner, threadID);
+      await fs.unlink(stateFile);
+      return;
+    }
+
+    if (body.toLowerCase() === 'join' && state.status === 'waiting_opponent') {
+      if (state.players.player1.uid === senderID) {
+        return message.reply(formatMessage("Vous ne pouvez pas jouer contre vous-même."));
+      }
+      userData = await usersData.get(senderID) || {};
+      state.players.player2 = { uid: senderID, name: userData.name || 'Utilisateur' };
+      state.status = 'choosing_char1';
+      state.lastTime = Date.now();
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      await message.reply(formatMessage(
+        `${userData.name || 'Utilisateur'} a rejoint !\n\n` +
+        `Joueur 1 (${state.players.player1.name}), choisissez un personnage.`
+      ));
+      return;
+    }
+
+    const playerUIDs = [state.players.player1?.uid, state.players.player2?.uid].filter(Boolean);
+    if (!playerUIDs.includes(senderID) && senderID !== 'AI') return;
+
+    if (state.status === 'waiting_opponent' && senderID === state.players.player1.uid) {
+      let opponentUID = Object.keys(mentions)[0] || body.trim().replace(/\D/g, '');
+      if (!opponentUID || opponentUID === senderID) {
+        return message.reply(formatMessage(`UID invalide. Réessayez.`));
+      }
+      try {
         const oppData = await usersData.get(opponentUID) || {};
         state.players.player2 = { uid: opponentUID, name: oppData.name || 'Utilisateur' };
         state.status = 'choosing_char1';
         state.currentTurn = 'player1';
         state.lastTime = Date.now();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Combat : ${state.players.player1.name} vs ${state.players.player2.name}\n\nJoueur 1, choisissez.`));
-        return;
+        await message.reply(formatMessage(
+          `Combat : Joueur 1 (${state.players.player1.name}) vs Joueur 2 (${state.players.player2.name})\n\n` +
+          `Joueur 1, choisissez un personnage.`
+        ));
+      } catch {
+        await message.reply(formatMessage('Utilisateur non trouvé.'));
       }
+      return;
+    }
 
-      if (state.status === 'choosing_difficulty' && senderID === state.players.player1.uid) {
-        const diff = body.trim().toLowerCase();
-        if (!['easy', 'normal', 'hard'].includes(diff)) return message.reply(formatMessage(`Difficulté invalide.`));
-        state.aiDifficulty = diff;
-        state.status = 'choosing_char1';
-        state.lastTime = Date.now();
-        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Difficulté : **${diff.toUpperCase()}**\n\nChoisissez votre personnage.`));
-        return;
-      }
-
-      if (state.status === 'story_intro' && senderID === state.players.player1.uid) {
-        const char = body.trim();
+    if (state.status === 'choosing_char1' && senderID === state.players.player1.uid) {
+      const char = body.trim();
+      try {
         const res = await apiPost(`${API_URL}/character`, { character: char }, { 'x-api-key': API_KEY });
-        const charData = extractJSON(res.data) || res.data;
-        if (!charData?.valid) return message.reply(formatMessage(`Personnage invalide.`));
+        let charData = extractJSON(res.data) || res.data;
+        if (!charData?.valid) {
+          return message.reply(formatMessage(`Personnage invalide, réessayez.`));
+        }
         state.characters.player1 = char;
         state.charInfo.player1 = charData;
-        state.status = 'story_combat';
-        state.currentTurn = 'player1';
-        state.lastTime = Date.now();
-        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Vous êtes **${char}**.\n\nUn ennemi apparaît !\n\nÀ vous !`));
-        return;
-      }
-
-      if (state.status === 'choosing_char1' && senderID === state.players.player1.uid) {
-        const char = body.trim();
-        const res = await apiPost(`${API_URL}/character`, { character: char }, { 'x-api-key': API_KEY });
-        const charData = extractJSON(res.data) || res.data;
-        if (!charData?.valid) return message.reply(formatMessage(`Personnage invalide.`));
-        state.characters.player1 = char;
-        state.charInfo.player1 = charData;
-        state.lastTime = Date.now();
-        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        if (state.isAI && !state.storyMode) await generateAICharacter(state, stateFile, message, threadID);
-        else if (state.storyMode) {
-          state.status = 'story_combat';
+        if (state.isAI) {
+          const aiRes = await apiPost(`${API_URL}/character`, { character: 'generate_for_ai', opponent_char: state.characters.player1, opponent_power_level: state.charInfo.player1.power_level }, { 'x-api-key': API_KEY });
+          let aiCharData = extractJSON(aiRes.data) || aiRes.data;
+          if (!aiCharData?.valid) {
+            return message.reply(formatMessage(`Erreur génération IA, réessayez.`));
+          }
+          state.characters.player2 = aiCharData.suggested_char || 'IA Générée';
+          state.charInfo.player2 = aiCharData;
+          state.stats = {
+            player1: initStats(state.charInfo.player1),
+            player2: initStats(state.charInfo.player2)
+          };
+          const pl1 = state.charInfo.player1.power_level || 1;
+          const pl2 = state.charInfo.player2.power_level || 1;
+          if (Math.max(pl1 / pl2, pl2 / pl1) > 5) {
+            const winner = pl1 > pl2 ? 'player1' : 'player2';
+            const winnerName = state.players[winner].name;
+            await message.reply(formatMessage(
+              `Écart trop grand (>5x) !\n${winnerName} (${state.characters[winner]}) gagne instantanément !\nCombat terminé !`
+            ));
+            await saveCombat(state, winnerName, threadID);
+            await fs.unlink(stateFile);
+            return;
+          }
+          state.status = 'combat';
           state.currentTurn = 'player1';
-          await message.reply(formatMessage(`Vous êtes **${char}**.\n\nEnnemi en vue !\n\nÀ vous !`));
+          state.lastTime = Date.now();
+          state.processing = false;
+          await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+          await message.reply(formatMessage(
+            `L'IA a choisi ${state.characters.player2} !\n\n` +
+            `Le combat commence !\n\n` +
+            `Joueur 1 (${state.players.player1.name}), à vous d'attaquer !`
+          ));
         } else {
           state.status = 'choosing_char2';
-          await message.reply(formatMessage(`Joueur 1 : ${char} !\n\nJoueur 2, choisissez.`));
+          state.lastTime = Date.now();
+          await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+          await message.reply(formatMessage(
+            `Joueur 1 a choisi ${char} !\n\n` +
+            `Joueur 2 (${state.players.player2.name}), choisissez votre personnage.`
+          ));
         }
-        return;
+      } catch (err) {
+        state.status = 'idle';
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        await message.reply(formatMessage(`Erreur validation (API fail). Partie reset.`));
       }
+      return;
+    }
 
-      if (state.status === 'choosing_char2' && senderID === state.players.player2.uid) {
-        const char = body.trim();
+    if (state.status === 'choosing_char2' && senderID === state.players.player2.uid) {
+      const char = body.trim();
+      try {
         const res = await apiPost(`${API_URL}/character`, { character: char }, { 'x-api-key': API_KEY });
-        const charData = extractJSON(res.data) || res.data;
-        if (!charData?.valid) return message.reply(formatMessage(`Personnage invalide.`));
+        let charData = extractJSON(res.data) || res.data;
+        if (!charData?.valid) {
+          return message.reply(formatMessage(`Personnage invalide, réessayez.`));
+        }
         state.characters.player2 = char;
         state.charInfo.player2 = charData;
-        state.stats = { player1: initStats(state.charInfo.player1), player2: initStats(state.charInfo.player2) };
+        state.stats = {
+          player1: initStats(state.charInfo.player1),
+          player2: initStats(state.charInfo.player2)
+        };
         const pl1 = state.charInfo.player1.power_level || 1;
         const pl2 = state.charInfo.player2.power_level || 1;
         if (Math.max(pl1 / pl2, pl2 / pl1) > 5) {
           const winner = pl1 > pl2 ? 'player1' : 'player2';
           const winnerName = state.players[winner].name;
-          await message.reply(formatMessage(`Écart >5x !\n${winnerName} gagne !`));
+          await message.reply(formatMessage(
+            `Écart trop grand (>5x) !\n${winnerName} (${state.characters[winner]}) gagne instantanément !\nCombat terminé !`
+          ));
           await saveCombat(state, winnerName, threadID);
-          state.status = 'idle';
           await fs.unlink(stateFile);
           return;
         }
         state.status = 'combat';
         state.currentTurn = 'player1';
         state.lastTime = Date.now();
+        state.processing = false;
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Combat commence !\n\nJoueur 1, à vous !`));
-        return;
+        await message.reply(formatMessage(
+          `Le combat commence !\n\n` +
+          `Joueur 1 (${state.players.player1.name}), à vous d'attaquer !`
+        ));
+      } catch (err) {
+        state.status = 'idle';
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        await message.reply(formatMessage(`Erreur validation (API fail). Partie reset.`));
       }
+      return;
+    }
 
-      const isPlayerTurn = ['combat', 'riposte', 'story_combat'].includes(state.status);
-      const isCorrectPlayer = state.currentTurn && state.players[state.currentTurn]?.uid === senderID;
+    const isPlayerTurn = state.status === 'combat' || state.status === 'riposte';
+    const isCorrectPlayer = state.currentTurn && state.players[state.currentTurn]?.uid === senderID;
 
-      if (isPlayerTurn && !isCorrectPlayer && !state.isAI) return message.reply(formatMessage(`Pas votre tour !`));
+    if (isPlayerTurn && !isCorrectPlayer && senderID !== 'AI') {
+      return message.reply(formatMessage(`Pas votre tour ! Attendez que ce soit à vous.`));
+    }
 
-      if (isPlayerTurn && (isCorrectPlayer || (state.isAI && state.currentTurn === 'player2'))) {
-        const action = state.isAI && state.currentTurn === 'player2' ? 'IA_TURN' : body.trim();
-        const isRiposte = state.status === 'riposte';
-        await handleAction(event, api, state, stateFile, isRiposte, threadID, message, usersData, action);
-        return;
+    if (isPlayerTurn && (isCorrectPlayer || senderID === 'AI')) {
+      if (state.processing) {
+        return message.reply(formatMessage(`Action en cours, attendez la fin.`));
       }
-    } finally {
-      state.processing = false;
-      if (state.status !== 'idle') await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      state.processing = true;
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      try {
+        await handleAction(event, api, state, stateFile, state.status === 'riposte', threadID, message, usersData);
+      } finally {
+        state.processing = false;
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      }
+      return;
     }
   }
 };
 
-async function generateAICharacter(state, stateFile, message, threadID) {
-  try {
-    const res = await apiPost(`${API_URL}/character`, {
-      character: 'generate_for_ai',
-      opponent_char: state.characters.player1,
-      opponent_power_level: state.charInfo.player1.power_level
-    }, { 'x-api-key': API_KEY });
-    const data = res.data?.valid && res.data.suggested_char ? res.data : { valid: true, suggested_char: 'Guerrier Mystérieux', power_level: state.charInfo.player1.power_level };
-    state.characters.player2 = data.suggested_char;
-    state.charInfo.player2 = data;
-    await message.reply(formatMessage(`L'IA choisit **${state.characters.player2}** !`));
-    state.stats = { player1: initStats(state.charInfo.player1), player2: initStats(state.charInfo.player2) };
-    const pl1 = state.charInfo.player1.power_level || 1;
-    const pl2 = state.charInfo.player2.power_level || 1;
-    if (Math.max(pl1 / pl2, pl2 / pl1) > 5) {
-      const winner = pl1 > pl2 ? 'player1' : 'player2';
-      const winnerName = state.players[winner].name;
-      await message.reply(formatMessage(`Écart >5x !\n${winnerName} gagne !`));
-      await saveCombat(state, winnerName, threadID);
-      state.status = 'idle';
-      await fs.unlink(stateFile);
-      return;
-    }
-    state.status = 'combat';
-    state.currentTurn = 'player1';
-    state.lastTime = Date.now();
-    await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-    await message.reply(formatMessage(`Combat commence !\n\nJoueur 1, à vous !`));
-  } catch {
-    state.status = 'idle';
-    await fs.unlink(stateFile);
-    await message.reply(formatMessage(`Erreur IA. Partie annulée.`));
-  }
-}
-
 function initStats(info = {}) {
-  return { pv: 100, endurance: 100, ...(info.resource_name && info.resource_name !== 'none' ? { [info.resource_name]: 100 } : {}) };
+  return {
+    pv: 100,
+    endurance: 100,
+    ...(info.resource_name && info.resource_name !== 'none' ? { [info.resource_name]: 100 } : {})
+  };
 }
 
-async function handleAction(event, api, state, stateFile, isRiposte, threadID, message, usersData, action) {
-  const { senderID } = event;
+async function handleAction(event, api, state, stateFile, isRiposte, threadID, message, usersData) {
+  const { body, senderID } = event;
+  const action = body.trim();
+  let retries = 3;
   let res;
-  try {
-    res = await apiPost(`${API_URL}/combat`, {
-      player1: state.players.player1,
-      player2: state.players.player2,
-      char1: state.characters.player1,
-      char2: state.characters.player2,
-      stats: state.stats,
-      history: state.history.slice(-50),
-      action,
-      isRiposte,
-      privilegedUID: senderID,
-      isAI: state.isAI,
-      currentTurn: state.currentTurn,
-      aiDifficulty: state.aiDifficulty,
-      storyMode: state.storyMode
-    }, { 'x-api-key': API_KEY });
-  } catch {
-    state.status = 'idle';
-    await fs.unlink(stateFile);
-    await message.reply(formatMessage(`Erreur API. Partie annulée.`));
-    return;
+  while (retries > 0) {
+    try {
+      res = await apiPost(`${API_URL}/combat`, {
+        player1: state.players.player1,
+        player2: state.players.player2,
+        char1: state.characters.player1,
+        char2: state.characters.player2,
+        stats: state.stats,
+        history: state.history,
+        action,
+        isRiposte,
+        privilegedUID: senderID,
+        isAI: state.isAI,
+        currentTurn: state.currentTurn,
+        aiDifficulty: state.aiDifficulty,
+        storyMode: false
+      }, { 'x-api-key': API_KEY });
+      break;
+    } catch (err) {
+      retries--;
+      if (retries === 0) {
+        state.status = 'idle';
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        await message.reply(formatMessage(`Erreur combat (API fail après retries). Partie reset.`));
+        return;
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
   }
 
-  const result = res?.data;
-  if (!result || result.decision === 'ignore_message') return;
+  const result = res.data;
+  if (result.decision === 'ignore_message') return;
 
   state.stats = result.stats || state.stats;
   state.history.push({ action: isRiposte ? `Riposte: ${action}` : action, result });
@@ -425,38 +451,46 @@ async function handleAction(event, api, state, stateFile, isRiposte, threadID, m
   const effects = result.impact?.effets_speciaux?.join(', ') || 'Aucun';
   const actions = result.possible_actions?.join(', ') || 'Aucune';
 
-  let display = state.storyMode 
-    ? result.description 
-    : `${result.description}\n\nPV :\n- ${p1Name}: ${pv1}\n- ${p2Name}: ${pv2}\n\nEffets: ${effects}\nActions: ${actions}`;
-
-  if (result.taunt && state.isAI && state.currentTurn === 'player2') {
-    display = `${result.description}\n\n**${state.characters.player2}** : *“${result.taunt}”*\n\nPV :\n- ${p1Name}: ${pv1}\n- ${p2Name}: ${pv2}`;
-  }
+  const display = `${result.description}\n\n` +
+    `PV restants :\n` +
+    `- Joueur 1 (${p1Name}): ${pv1} PV\n` +
+    `- Joueur 2 (${p2Name}): ${pv2} PV\n\n` +
+    `Effets: ${effects}\n\n` +
+    `Actions: ${actions}`;
 
   await message.reply(formatMessage(display));
 
   if (result.decision === 'combat_termine') {
     const winner = pv1 > 0 ? p1Name : p2Name;
-    await message.reply(formatMessage(`Combat terminé !\n\n${winner} gagne !`));
+    await message.reply('Combat terminé !');
     await saveCombat(state, winner, threadID);
-    state.status = 'idle';
     await fs.unlink(stateFile);
     return;
   }
 
+  let nextTurnMessage = '';
   if (result.decision === 'attente_riposte') {
-    state.status = state.storyMode ? 'story_combat' : 'riposte';
+    state.status = 'riposte';
     state.currentTurn = state.currentTurn === 'player1' ? 'player2' : 'player1';
     const next = await usersData.get(state.players[state.currentTurn].uid) || {};
-    await message.reply(formatMessage(`${next.name || 'Utilisateur'}, ripostez !\n\nOptions: ${result.possible_actions.join(', ')}`));
+    nextTurnMessage = `Joueur ${state.currentTurn === 'player1' ? '1' : '2'} (${next.name || 'Utilisateur'}), ripostez !\n\n` +
+      `Options: ${result.possible_actions.join(', ')}`;
   } else {
-    state.status = state.storyMode ? 'story_combat' : 'combat';
+    state.status = 'combat';
     state.currentTurn = state.currentTurn === 'player1' ? 'player2' : 'player1';
     const next = await usersData.get(state.players[state.currentTurn].uid) || {};
-    await message.reply(formatMessage(`${next.name || 'Utilisateur'}, à vous !`));
+    nextTurnMessage = `Joueur ${state.currentTurn === 'player1' ? '1' : '2'} (${next.name || 'Utilisateur'}), à vous !`;
   }
 
   state.lastTime = Date.now();
+  await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+
+  await message.reply(formatMessage(nextTurnMessage));
+
+  if (state.currentTurn === 'player2' && state.isAI) {
+    await message.reply(formatMessage(`Tour de l'IA...`));
+    await handleAction({ body: 'IA_TURN', senderID: 'AI' }, api, state, stateFile, state.status === 'riposte', threadID, message, usersData);
+  }
 }
 
 async function saveCombat(state, winner, threadID) {
@@ -470,5 +504,5 @@ async function saveCombat(state, winner, threadID) {
       winner,
       status: 'finished'
     }, { 'x-api-key': API_KEY });
-  } catch {}
+  } catch (err) {}
 }
