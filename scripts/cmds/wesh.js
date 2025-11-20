@@ -49,11 +49,11 @@ module.exports = {
   config: {
     name: 'uchiha-storm',
     version: '4.1.0',
-    author: 'L’Uchiha Perdu',
+    author: 'L\'Uchiha Perdu',
     countDown: 5,
     role: 0,
     shortDescription: { en: 'Mini-jeu de combat textuel multivers' },
-    description: { en: 'Jeu de combat avec personnages de divers univers, géré par IA via API.' },
+    description: { en: 'Jeu de combat avec personnages de divers univers, via API.' },
     category: 'Game',
     guide: { en: '{pn} menu' }
   },
@@ -80,11 +80,9 @@ module.exports = {
     }
 
     const command = args[0]?.toLowerCase() || '';
-
+    
     if (state.status !== 'idle' && Date.now() - (state.lastTime || 0) > 120000) {
-      const winner = state.currentTurn === 'player1'
-        ? (state.players.player2?.name || 'Joueur 2')
-        : (state.players.player1?.name || 'Joueur 1');
+      const winner = state.currentTurn === 'player1' ? (state.players.player2?.name || 'Joueur 2') : (state.players.player1?.name || 'Joueur 1');
       await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
       await saveCombat(state, winner, threadID);
       state.status = 'idle';
@@ -94,16 +92,13 @@ module.exports = {
     }
 
     if (!command) {
+      const welcomeText = `Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu" pour commencer !`;
       try {
-        const img = await axios.get(IMAGE_URL, { responseType: 'stream' });
-        await message.reply({
-          body: formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`),
-          attachment: img.data
-        });
-      } catch {
-        await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`));
+        const img = await axios.get(IMAGE_URL, { responseType: 'stream', timeout: 10000 });
+        return await message.reply({ body: formatMessage(welcomeText), attachment: img.data });
+      } catch (error) {
+        return await message.reply(formatMessage(welcomeText));
       }
-      return;
     }
 
     if (command === 'menu') {
@@ -225,9 +220,7 @@ module.exports = {
     if (state.status === 'idle') return;
 
     if (Date.now() - (state.lastTime || 0) > 120000) {
-      const winner = state.currentTurn === 'player1'
-        ? (state.players.player2?.name || 'Joueur 2')
-        : (state.players.player1?.name || 'Joueur 1');
+      const winner = state.currentTurn === 'player1' ? (state.players.player2?.name || 'Joueur 2') : (state.players.player1?.name || 'Joueur 1');
       await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
       await saveCombat(state, winner, threadID);
       state.status = 'idle';
@@ -237,9 +230,7 @@ module.exports = {
     }
 
     if (['stop', 'forfait', 'fin'].includes(body.toLowerCase())) {
-      const winner = senderID === state.players.player1.uid
-        ? (state.players.player2?.name || 'Joueur 2')
-        : (state.players.player1?.name || 'Joueur 1');
+      const winner = senderID === state.players.player1.uid ? (state.players.player2?.name || 'Joueur 2') : (state.players.player1?.name || 'Joueur 1');
       await message.reply(formatMessage(`${senderName} abandonne !\n\n${winner} gagne par forfait !`));
       await saveCombat(state, winner, threadID);
       state.status = 'idle';
@@ -302,6 +293,7 @@ module.exports = {
         state.status = 'choosing_char2';
         state.lastTime = Date.now();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        
         if (state.isAI) {
           await generateIaCharacter(state, stateFile, message, senderName, threadID);
         } else {
@@ -388,8 +380,10 @@ async function initCombat(state, stateFile, message, threadID) {
     player1: initStats(state.charInfo.player1),
     player2: initStats(state.charInfo.player2)
   };
+  
   const pl1 = state.charInfo.player1.power_level || 1;
   const pl2 = state.charInfo.player2.power_level || 1;
+  
   if (Math.max(pl1 / pl2, pl2 / pl1) > 5) {
     const winner = pl1 > pl2 ? 'player1' : 'player2';
     const winnerName = state.players[winner].name;
@@ -402,6 +396,7 @@ async function initCombat(state, stateFile, message, threadID) {
     await fs.unlink(stateFile);
     return;
   }
+  
   state.status = 'combat';
   state.currentTurn = 'player1';
   state.lastTime = Date.now();
@@ -427,21 +422,27 @@ async function iaTurn(api, state, stateFile, threadID, message, usersData) {
       currentTurn: 'player2',
       aiDifficulty: state.aiDifficulty
     }, { 'x-api-key': API_KEY });
+    
     const result = res.data;
     if (result.decision === 'ignore_message') return;
+    
     state.stats = result.stats || state.stats;
     state.history.push({ action: `IA: ${result.taunt || 'Action IA'}`, result });
+    
     const pv1 = state.stats.player1?.pv ?? 100;
     const pv2 = state.stats.player2?.pv ?? 100;
     const effects = result.impact?.effets_speciaux?.join(', ') || 'Aucun';
     const actions = result.possible_actions?.join(', ') || 'Aucune';
+    
     const display = `${result.description}\n\n` +
       `PV restants :\n` +
       `- Joueur 1 (${state.players.player1.name}): ${pv1} PV\n` +
       `- IA: ${pv2} PV\n\n` +
       `Effets: ${effects}\n\n` +
       `Actions: ${actions}`;
+    
     await message.reply(formatMessage(display));
+    
     if (result.decision === 'combat_termine') {
       const winner = pv1 > 0 ? state.players.player1.name : 'IA';
       await message.reply('Combat terminé !');
@@ -451,6 +452,7 @@ async function iaTurn(api, state, stateFile, threadID, message, usersData) {
       await fs.unlink(stateFile);
       return;
     }
+    
     if (result.decision === 'attente_riposte') {
       state.status = 'riposte';
     } else {
@@ -476,6 +478,7 @@ function initStats(info = {}) {
 async function handleAction(event, api, state, stateFile, isRiposte, threadID, message, usersData) {
   const { body, senderID } = event;
   const action = body.trim();
+  
   let retries = 3;
   let res;
   while (retries > 0) {
@@ -572,7 +575,8 @@ async function saveCombat(state, winner, threadID) {
       winner,
       status: 'finished'
     }, { 'x-api-key': API_KEY });
-  } catch (err) {}
+  } catch (err) {
+  }
 }
 
 async function startTournamentRound(api, message, tournamentID, brackets, stateFile) {
