@@ -597,3 +597,4 @@ async function startTournamentRound(api, message, tournamentID, brackets, stateF
     await api.sendMessage(formatMessage(`Match: ${match.player1.name} vs ${match.player2.name}\nPrêts ? Envoyez 'prêt' !`), threadID);
     await api.sendMessage(formatMessage(`Les autres : Attendez votre tour.`), threadID);
   }
+}
