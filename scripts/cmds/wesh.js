@@ -36,7 +36,7 @@ module.exports = {
   config: {
     name: 'uchiha-storm',
     version: '5.0.0',
-    author: 'L’Uchiha Perdu',
+    author: 'L\'Uchiha Perdu',
     countDown: 5,
     role: 0,
     shortDescription: { en: 'Mini-jeu de combat textuel multivers' },
@@ -155,7 +155,7 @@ module.exports = {
             msg += `Match ${i+1}: ${b.player1.name} vs ${b.player2?.name || 'BYE'}\n`;
           });
           await message.reply(formatMessage(msg));
-          await startTournamentRound(api, message, args[2], brackets, stateFile);
+          await startTournamentRound(api, message, args[2], brackets, stateFile, threadID);
         } catch (err) {
           await message.reply(formatMessage(`Erreur démarrage tournoi`));
         }
@@ -204,7 +204,7 @@ module.exports = {
 
     if (!await fs.pathExists(stateFile)) return;
     try {
-state = JSON.parse(await fs.readFile(stateFile));
+      state = JSON.parse(await fs.readFile(stateFile));
     } catch {
       return;
     }
@@ -276,7 +276,13 @@ state = JSON.parse(await fs.readFile(stateFile));
       return;
     }
 
+    if (state.processing && (state.status === 'choosing_char1' || state.status === 'choosing_char2')) {
+      return;
+    }
+
     if (state.status === 'choosing_char1' && senderID === state.players.player1.uid) {
+      state.processing = true;
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       const char = body.trim();
       try {
         const res = await apiPost(`${API_URL}/character`, { character: char }, { 'x-api-key': API_KEY });
@@ -302,11 +308,16 @@ state = JSON.parse(await fs.readFile(stateFile));
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
         await message.reply(formatMessage(`Erreur validation (API fail). Partie reset.`));
         await fs.unlink(stateFile);
+      } finally {
+        state.processing = false;
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       }
       return;
     }
 
     if (state.status === 'choosing_char2' && senderID === state.players.player2.uid && !state.isAI) {
+      state.processing = true;
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       const char = body.trim();
       try {
         const res = await apiPost(`${API_URL}/character`, { character: char }, { 'x-api-key': API_KEY });
@@ -318,13 +329,15 @@ state = JSON.parse(await fs.readFile(stateFile));
         state.charInfo.player2 = charData;
         state.lastTime = Date.now();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Joueur 2 a choisi ${char} !\n\nLe combat commence !`));
         await initCombat(state, stateFile, message, threadID);
       } catch (err) {
         state.status = 'idle';
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
         await message.reply(formatMessage(`Erreur validation (API fail). Partie reset.`));
         await fs.unlink(stateFile);
+      } finally {
+        state.processing = false;
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       }
       return;
     }
@@ -357,6 +370,7 @@ state = JSON.parse(await fs.readFile(stateFile));
 };
 
 async function generateIaCharacter(state, stateFile, message, senderName, threadID) {
+  if (!state.isAI) return;
   try {
     const res = await apiPost(`${API_URL}/character`, { character: 'generate_for_ai', opponent_char: state.characters.player1, opponent_power_level: state.charInfo.player1.power_level }, { 'x-api-key': API_KEY });
     let charData = extractJSON(res.data) || res.data;
@@ -410,6 +424,8 @@ async function initCombat(state, stateFile, message, threadID) {
   } catch (err) {
     console.error('Pré-combat check échoué:', err);
   }
+
+  await message.reply(formatMessage(`Le combat commence ! À vous, ${state.players.player1.name}.`));
 
   state.status = 'combat';
   state.currentTurn = 'player1';
@@ -585,10 +601,12 @@ async function saveCombat(state, winner, threadID) {
       winner,
       status: 'finished'
     }, { 'x-api-key': API_KEY });
-  } catch (err) {}
+  } catch (err) {
+    console.error('Erreur sauvegarde combat:', err);
+  }
 }
 
-async function startTournamentRound(api, message, tournamentID, brackets, stateFile) {
+async function startTournamentRound(api, message, tournamentID, brackets, stateFile, threadID) {
   for (const match of brackets) {
     if (!match.player2) {
       await apiPost(`${API_URL}/tournament/update`, { tournamentID, matchID: match.matchID, winnerUID: match.player1.uid }, { 'x-api-key': API_KEY });
