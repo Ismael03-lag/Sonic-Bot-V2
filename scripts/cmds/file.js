@@ -19,17 +19,15 @@ guide: "{pn} loading"
 
 onStart: async function({ message, args, api, event }) {
 
-// ⚡ Fonction d’envoi avec suppression auto
 const permanentCommands = ["loading", "info", "list", "search", "check"];
 async function send(text, noDelete = false) {
   const shouldStay = permanentCommands.includes(sub) || noDelete;
   return api.sendMessage(text, event.threadID, (err, info) => {
-    if (shouldStay) return; // ⭕ Message permanent
-    setTimeout(() => api.unsendMessage(info.messageID), 6000); // 🕒 Sinon suppression
+    if (shouldStay) return;
+    setTimeout(() => api.unsendMessage(info.messageID), 6000); 
   });
 }
 
-// Permissions
 const permission = ["61578433048588","61582101006304","100083846212138"];
 if (!permission.includes(event.senderID)) {
 return send("🚫| Négatif... Seuls ミ★𝐒𝐎𝐍𝐈𝐂✄𝐄𝐗𝐄★彡 & ʚʆɞGūɱbāllʚʆɞɱ & Walter O'Brien peuvent utiliser cette fonction.");
@@ -41,7 +39,6 @@ if (!args[0]) return send(`${border}\n【 ❌ SYNTAXE 】\nUtilise: file loading
 const sub = args[0].toLowerCase();
 const baseDir = __dirname;
 
-// 🌟 GUIDE — jamais supprimé
 if (sub === "loading") {
 return send(
 `${border}\n【 💡 GUIDE FILE 】\n\n📄 file <nom> → Envoie le fichier\n📃 file list → Liste tous .js\n🔍 file search <mot> → Recherche floue\n🧩 file chunk <file> <part> → Par morceaux (alias: part)\n📁 file folder <dossier> → ZIP + envoi dossier\n🧪 file check <file> → Analyse rapide\n📊 file info <file> → Infos fichier\n🌐 file raw <nom> → ZIP + lien (alias: zip)\n\nPour fichiers longs: ZIP auto !\n${border}`,
@@ -49,7 +46,6 @@ true // ⭕ jamais supprimé
 );
 }
 
-// UPLOAD
 async function uploadToService(filePath, serviceName) {
 try {
 const fileBuffer = fs.readFileSync(filePath);
@@ -91,7 +87,6 @@ throw new Error(`${serviceName}: ${error.message}`);
 }
 }
 
-// ZIP
 async function createAndUploadZip(sourcePath, zipName = null, isFolder = false) {
 const finalZipName = zipName || (isFolder ? path.basename(sourcePath) : path.basename(sourcePath, '.js')) + '.zip';
 const zipPath = path.join(require('os').tmpdir(), finalZipName);
@@ -134,7 +129,6 @@ archive.finalize();
 });
 }
 
-// LIST
 if (sub === "list") {
 const files = fs.readdirSync(baseDir).filter(f => f.endsWith(".js"));
 return send(
@@ -142,7 +136,6 @@ return send(
 );
 }
 
-// SEARCH
 if (sub === "search") {
 const query = args.slice(1).join(" ").toLowerCase();
 if (!query) return send(`${border}\n【 ❌ SYNTAXE 】\nfile search <mot>\n${border}`);
@@ -157,7 +150,6 @@ return send(
 );
 }
 
-// CHUNK
 if (sub === "chunk" || sub === "part") {
 const fileName = args[1];
 if (!fileName) return send(`${border}\n【 ❌ SYNTAXE 】\nfile chunk <file> [part]\n${border}`);
@@ -180,7 +172,6 @@ return;
 }
 }
 
-// FOLDER ZIP
 if (sub === "folder") {
 const folderName = args[1];
 if (!folderName) return send(`${border}\n【 ❌ SYNTAXE 】\nfile folder <dossier>\n${border}`);
@@ -194,7 +185,6 @@ return send(`${border}\n【 ⚠️ ERREUR ZIP 】\n${err.message}\n${border}`);
 }
 }
 
-// CHECK
 if (sub === "check") {
 const fileName = args[1];
 if (!fileName) return send(`${border}\n【 ❌ SYNTAXE 】\nfile check <file>\n${border}`);
@@ -209,7 +199,6 @@ return send(
 );
 }
 
-// 🌟 INFO — jamais supprimé
 if (sub === "info") {
 const fileName = args[1];
 if (!fileName) return send(`${border}\n【 ❌ SYNTAXE 】\nfile info <file>\n${border}`, true);
@@ -224,7 +213,6 @@ true
 );
 }
 
-// RAW ZIP
 if (sub === "raw" || sub === "zip") {
 const fileName = args[1];
 if (!fileName) return send(`${border}\n【 ❌ SYNTAXE 】\nfile raw <nom>\n${border}`);
@@ -240,7 +228,6 @@ return send(`${border}\n【 ⚠️ ERREUR ZIP 】\n${err.message}\n${border}`);
 }
 }
 
-// SEND FILE (read)
 const fileName = sub;
 const filePath = path.join(baseDir, fileName + ".js");
 if (!fs.existsSync(filePath)) {
