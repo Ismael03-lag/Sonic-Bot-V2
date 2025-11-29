@@ -405,7 +405,7 @@ module.exports = {
 async function generateIaCharacter(state, stateFile, message, senderName, threadID) {
   if (!state.isAI) return;
   try {
-    const res = await apiPost(`${API_URL}/character`, { character: 'generate_for_ai', opponent_char: state.characters.player1, opponent_power_level: state.charInfo.player1.power_level }, { 'x-api-key': API_KEY });
+    const res = await apiPost(`${API_URL}/character`, { character: 'generate_for_ai', opponent_char: state.characters.player1, opponent_power_level: state.charInfo.player1.power_level, aiDifficulty: state.aiDifficulty }, { 'x-api-key': API_KEY });
     let charData = extractJSON(res.data) || res.data;
     if (!charData?.valid) throw new Error('IA char fail');
     state.characters.player2 = charData.suggested_char;
