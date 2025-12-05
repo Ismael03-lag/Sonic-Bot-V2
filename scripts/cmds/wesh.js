@@ -1,12 +1,22 @@
 const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
+const Canvas = require('canvas');
 
 const API_KEY = 'uchiha-perdu-storm';
 const API_URL = 'https://combat-storm.vercel.app';
 const IMAGE_URL = 'https://i.ibb.co/S4r4xpF0/file-0000000084f86243b7f327827bf6e062.png';
 
 const formatMessage = (msg) => `≪━─━─━─◈─━─━─━≫\n${msg}\n≪━─━─━─◈─━─━─━≫`;
+
+const defaultFontName = "BeVietnamPro-SemiBold";
+const defaultPathFontName = path.join(__dirname, 'assets', 'font', 'BeVietnamPro-SemiBold.ttf');
+const boldPathFontName = path.join(__dirname, 'assets', 'font', 'BeVietnamPro-Bold.ttf');
+
+try {
+    if (fs.existsSync(boldPathFontName)) Canvas.registerFont(boldPathFontName, { family: "BeVietnamPro-Bold" });
+    if (fs.existsSync(defaultPathFontName)) Canvas.registerFont(defaultPathFontName, { family: defaultFontName });
+} catch (e) {}
 
 function getInitialState() {
   return {
@@ -20,7 +30,14 @@ function getInitialState() {
     processing: false,
     isAI: false,
     aiDifficulty: 'normal',
-    currentTurn: null
+    currentTurn: null,
+    tournament: {
+        active: false,
+        id: null,
+        matches: [],
+        readyStatus: {},
+        currentMatchID: null
+    }
   };
 }
 
@@ -42,16 +59,184 @@ async function apiPost(url, data, headers = {}, retries = 3) {
       if (response.status === 200) return response;
       throw new Error(`Status: ${response.status}`);
     } catch (err) {
+      if (err.response && err.response.data) throw err;
       if (i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, 2000));
     }
   }
 }
 
+async function drawWinnerCard(winnerName, winnerUID, usersData) {
+    const width = 1000;
+    const height = 500;
+    const canvas = Canvas.createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+
+    const grd = ctx.createLinearGradient(0, 0, width, height);
+    grd.addColorStop(0, '#1a1a1a');
+    grd.addColorStop(0.5, '#000000');
+    grd.addColorStop(1, '#1a1a1a');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = '#FFD700'; 
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, 250, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(10, 10, width - 20, height - 20);
+
+    ctx.font = 'bold 80px Arial';
+    ctx.fillStyle = '#FFD700';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = "rgba(255, 215, 0, 0.8)";
+    ctx.shadowBlur = 15;
+    ctx.fillText("VICTOIRE", width / 2, 100);
+    ctx.shadowBlur = 0;
+
+    if (winnerUID && winnerUID !== 'IA') {
+        try {
+            const avatarUrl = await usersData.getAvatarUrl(winnerUID);
+            const avatar = await Canvas.loadImage(avatarUrl);
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, 110, 0, Math.PI * 2); 
+            ctx.fillStyle = '#FFD700';
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, 105, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(avatar, width / 2 - 105, height / 2 - 105, 210, 210);
+            ctx.restore();
+        } catch (e) {}
+    } else {
+        ctx.fillStyle = '#FF0000';
+        ctx.font = 'bold 100px Arial';
+        ctx.fillText("🤖", width / 2, height / 2 + 30);
+    }
+
+    ctx.font = 'bold 50px Arial';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.fillText(winnerName.toUpperCase(), width / 2, 430);
+
+    const tmpPath = path.join(__dirname, 'cache', `winner_${Date.now()}.png`);
+    const buffer = canvas.toBuffer('image/png');
+    await fs.writeFile(tmpPath, buffer);
+    return fs.createReadStream(tmpPath);
+}
+
+function drawSquareRounded(ctx, x, y, w, h, r, color) {
+    ctx.save();
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+}
+
+function checkGradientColor(ctx, color, x1, y1, x2, y2) {
+    if (Array.isArray(color)) {
+        const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+        color.forEach((c, index) => {
+            gradient.addColorStop(index / (color.length - 1), c);
+        });
+        return gradient;
+    }
+    return color;
+}
+
+async function drawBracket(matches, usersData) {
+    const width = 1000;
+    const matchHeight = 180;
+    const headerHeight = 100;
+    const height = headerHeight + (matches.length * (matchHeight + 20));
+    
+    const canvas = Canvas.createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+
+    const mainColor = "#2b2b2b";
+    const subColor = ["#ff0000", "#990000"];
+    const textColor = "#ffffff";
+
+    ctx.fillStyle = mainColor;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.font = "bold 50px Arial"; 
+    ctx.fillStyle = checkGradientColor(ctx, subColor, 0, 0, width, 0);
+    ctx.textAlign = "center";
+    ctx.fillText("TOURNOI - MATCHUPS", width / 2, 70);
+
+    for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const y = headerHeight + (i * (matchHeight + 20));
+
+        drawSquareRounded(ctx, 50, y, width - 100, matchHeight, 20, "rgba(255, 255, 255, 0.1)");
+
+        const p1Name = match.player1.name;
+        const p2Name = match.player2 ? match.player2.name : "???";
+
+        try {
+            const ava1 = await usersData.getAvatarUrl(match.player1.uid);
+            const img1 = await Canvas.loadImage(ava1);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(130, y + matchHeight/2, 60, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(img1, 70, y + matchHeight/2 - 60, 120, 120);
+            ctx.restore();
+        } catch {}
+
+        if (match.player2) {
+            try {
+                const ava2 = await usersData.getAvatarUrl(match.player2.uid);
+                const img2 = await Canvas.loadImage(ava2);
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(width - 130, y + matchHeight/2, 60, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(img2, width - 190, y + matchHeight/2 - 60, 120, 120);
+                ctx.restore();
+            } catch {}
+        }
+
+        ctx.font = "bold 35px Arial";
+        ctx.fillStyle = textColor;
+        ctx.textAlign = "left";
+        ctx.fillText(p1Name, 210, y + matchHeight/2 + 10);
+
+        ctx.textAlign = "right";
+        ctx.fillText(p2Name, width - 210, y + matchHeight/2 + 10);
+
+        ctx.font = "bold 60px Arial";
+        ctx.fillStyle = "#ff4d4d";
+        ctx.textAlign = "center";
+        ctx.fillText("VS", width / 2, y + matchHeight/2 + 20);
+    }
+
+    const tmpPath = path.join(__dirname, 'cache', `bracket_${Date.now()}.png`);
+    const buffer = canvas.toBuffer('image/png');
+    await fs.writeFile(tmpPath, buffer);
+    return fs.createReadStream(tmpPath);
+}
+
 module.exports = {
   config: {
     name: 'uchiha-storm',
-    version: '5.4.0',
+    version: '8.0.0',
     author: 'L\'Uchiha Perdu',
     countDown: 5,
     role: 0,
@@ -68,6 +253,7 @@ module.exports = {
     const prefix = global.GoatBot?.config?.prefix || '!';
     const stateDir = path.join(__dirname, 'cache');
     const stateFile = path.join(stateDir, `uchiha_storm_state_${threadID}.json`);
+    const menuImgPath = path.join(stateDir, 'menu_uchiha.png');
     
     let state = getInitialState();
     await fs.ensureDir(stateDir);
@@ -85,29 +271,43 @@ module.exports = {
 
     const command = args[0]?.toLowerCase() || '';
 
-    if (state.status !== 'idle' && Date.now() - (state.lastTime || 0) > 120000) {
+    if (state.status !== 'idle' && Date.now() - (state.lastTime || 0) > 300000) {
       const winner = state.currentTurn === 'player1'
         ? (state.players.player2?.name || 'Joueur 2')
         : (state.players.player1?.name || 'Joueur 1');
-      await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
-      await saveCombat(state, winner, threadID);
+      await message.reply(formatMessage(`Temps écoulé (5 min) !\n\n${winner} gagne par forfait !`));
       
+      if (state.tournament?.active && state.tournament?.currentMatchID) {
+          const winnerUID = winner === state.players.player1.name ? state.players.player1.uid : state.players.player2.uid;
+          await apiPost(`${API_URL}/tournament/update`, { 
+              tournamentID: state.tournament.id, 
+              matchID: state.tournament.currentMatchID, 
+              winnerUID: winnerUID 
+          }, { 'x-api-key': API_KEY });
+      }
+
       state = getInitialState();
       await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       await fs.unlink(stateFile).catch(() => {});
       return;
     }
 
-    if (!command) {
-      try {
-        const img = await axios.get(IMAGE_URL, { responseType: 'stream' });
-        await message.reply({
-          body: formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`),
-          attachment: img.data
-        });
-      } catch {
-        await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`));
+    if (!command || command === 'menu') {
+      let attachment;
+      if (await fs.pathExists(menuImgPath)) {
+          attachment = fs.createReadStream(menuImgPath);
+      } else {
+          try {
+              const response = await axios.get(IMAGE_URL, { responseType: 'arraybuffer' });
+              await fs.writeFile(menuImgPath, response.data);
+              attachment = fs.createReadStream(menuImgPath);
+          } catch { attachment = null; }
       }
+
+      await message.reply({
+        body: formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`),
+        attachment
+      });
       return;
     }
 
@@ -200,14 +400,29 @@ module.exports = {
         try {
           const res = await apiPost(`${API_URL}/tournament/start`, { tournamentID: args[2] }, { 'x-api-key': API_KEY });
           const brackets = res.data.brackets;
-          let msg = 'Tournoi démarré !\n\nBrackets :\n';
-          brackets.forEach((b, i) => {
-            msg += `Match ${i+1}: ${b.player1.name} vs ${b.player2?.name || 'BYE'}\n`;
+
+          state = getInitialState();
+          state.tournament.active = true;
+          state.tournament.id = args[2];
+          state.tournament.matches = brackets;
+          state.status = 'tournament_lobby';
+          await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+
+          const bracketImage = await drawBracket(brackets, usersData);
+          
+          let msg = "🏆 LE TOURNOI COMMENCE !\n\n";
+          brackets.forEach((m) => {
+              msg += `➤ ${m.player1.name} VS ${m.player2.name}\n`;
           });
-          await message.reply(formatMessage(msg));
-          await startTournamentRound(api, message, args[2], brackets, stateFile, threadID);
+          msg += `\nLes combattants, envoyez "prêt" pour lancer votre match !`;
+
+          await message.reply({ body: formatMessage(msg), attachment: bracketImage });
+
         } catch (err) {
-          await message.reply(formatMessage(`Erreur démarrage tournoi`));
+            if (err.response && err.response.data && err.response.data.error === 'Nombre impair') {
+                return message.reply(formatMessage(`Impossible de démarrer : Nombre de joueurs impair (${err.response.data.currentCount}).\nIl faut un nombre pair.`));
+            }
+            await message.reply(formatMessage(`Erreur démarrage tournoi.`));
         }
         return;
       }
@@ -235,16 +450,56 @@ module.exports = {
 
     if (state.status === 'idle') return;
 
-    if (Date.now() - (state.lastTime || 0) > 120000) {
+    if (Date.now() - (state.lastTime || 0) > 300000) {
       const winner = state.currentTurn === 'player1'
         ? (state.players.player2?.name || 'Joueur 2')
         : (state.players.player1?.name || 'Joueur 1');
-      await message.reply(formatMessage(`Temps écoulé !\n\n${winner} gagne par forfait !`));
-      await saveCombat(state, winner, threadID);
+      await message.reply(formatMessage(`Temps écoulé (5 min) !\n\n${winner} gagne par forfait !`));
+      
+      if (state.tournament?.active && state.tournament?.currentMatchID) {
+          const winnerUID = winner === state.players.player1.name ? state.players.player1.uid : state.players.player2.uid;
+          await apiPost(`${API_URL}/tournament/update`, { 
+              tournamentID: state.tournament.id, 
+              matchID: state.tournament.currentMatchID, 
+              winnerUID: winnerUID 
+          }, { 'x-api-key': API_KEY });
+      }
+
       state = getInitialState();
       await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       await fs.unlink(stateFile).catch(() => {});
       return;
+    }
+
+    if (state.tournament?.active && body.toLowerCase().trim() === 'prêt') {
+        const matches = state.tournament.matches;
+        const matchIndex = matches.findIndex(m => m.player2 && (m.player1.uid === senderID || m.player2.uid === senderID) && !m.winner);
+        
+        if (matchIndex === -1) return; 
+
+        state.tournament.readyStatus[senderID] = true;
+        const match = matches[matchIndex];
+        const p1Ready = state.tournament.readyStatus[match.player1.uid];
+        const p2Ready = state.tournament.readyStatus[match.player2.uid];
+
+        if (p1Ready && p2Ready) {
+            await message.reply(formatMessage(`🔴 MATCH LANCÉ : ${match.player1.name} VS ${match.player2.name} !\n${match.player1.name}, choisissez votre personnage.`));
+            
+            const tournamentBackup = { ...state.tournament };
+            state = getInitialState();
+            state.tournament = tournamentBackup; 
+            
+            state.players.player1 = match.player1;
+            state.players.player2 = match.player2;
+            state.status = 'choosing_char1';
+            state.currentTurn = 'player1';
+            state.lastTime = Date.now();
+            state.tournament.currentMatchID = match.matchID;
+        } else {
+             await message.reply(formatMessage(`${state.players[senderID]?.name || 'Un joueur'} est prêt ! En attente de l'adversaire...`));
+        }
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        return;
     }
 
     if (['stop', 'forfait', 'fin'].includes(body.toLowerCase())) {
@@ -252,8 +507,28 @@ module.exports = {
         ? (state.players.player2?.name || 'Joueur 2')
         : (state.players.player1?.name || 'Joueur 1');
       await message.reply(formatMessage(`${senderName} abandonne !\n\n${winner} gagne par forfait !`));
-      await saveCombat(state, winner, threadID);
+      
+      if (state.tournament?.active && state.tournament?.currentMatchID) {
+          const winnerUID = winner === state.players.player1.name ? state.players.player1.uid : state.players.player2.uid;
+          const upRes = await apiPost(`${API_URL}/tournament/update`, { 
+              tournamentID: state.tournament.id, 
+              matchID: state.tournament.currentMatchID, 
+              winnerUID: winnerUID 
+          }, { 'x-api-key': API_KEY });
+          
+          if (upRes.data.status === 'finished') {
+               await message.reply(formatMessage(`🎉 LE TOURNOI EST TERMINÉ !\nLE GRAND VAINQUEUR EST : ${winner.toUpperCase()} !`));
+          } else {
+               const bracketImage = await drawBracket(upRes.data.brackets, usersData);
+               await message.reply({ body: formatMessage(`Match terminé ! Mise à jour du tournoi...`), attachment: bracketImage });
+          }
+      }
+
       state = getInitialState();
+      if (state.tournament?.active) {
+           const tBackup = state.tournament;
+           state.tournament = tBackup;
+      }
       await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       await fs.unlink(stateFile).catch(() => {});
       return;
@@ -448,6 +723,11 @@ async function initCombat(state, stateFile, message, threadID) {
       const loserName = state.players[loserKey].name;
       const display = `${preResult.description || 'Analyse pré-combat...'}\n\nONE-SHOT INSTANTANÉ !\n${winnerName} (${winnerChar}) anéantit ${loserName} avant même le début !\nRaison : ${preResult.one_shot_reason || 'Écart cosmique !'}`;
       await message.reply(formatMessage(display));
+      
+      const winnerUID = winnerKey === 'player1' ? state.players.player1.uid : state.players.player2.uid;
+      const winnerCard = await drawWinnerCard(winnerName, winnerUID, {}); 
+      await message.reply({ attachment: winnerCard });
+      
       await saveCombat(state, winnerName, threadID);
       
       const cleanState = getInitialState();
@@ -505,8 +785,14 @@ async function iaTurn(api, state, stateFile, threadID, message, usersData) {
 
     if (result.decision === 'one_shot' || result.decision === 'combat_termine') {
       const winner = result.decision === 'one_shot' ? (result.winner === 'player1' ? state.players.player1.name : 'IA') : (pv1 > 0 ? state.players.player1.name : 'IA');
+      const winnerUID = result.decision === 'one_shot' ? (result.winner === 'player1' ? state.players.player1.uid : 'IA') : (pv1 > 0 ? state.players.player1.uid : 'IA');
+      
       const extra = result.decision === 'one_shot' ? `\nONE-SHOT ! Raison: ${result.one_shot_reason || 'Puissance écrasante !'}` : '';
       await message.reply(formatMessage(`Combat terminé !${extra}`));
+      
+      const winnerCard = await drawWinnerCard(winner, winnerUID, usersData);
+      await message.reply({ attachment: winnerCard });
+      
       await saveCombat(state, winner, threadID);
       
       const cleanState = getInitialState();
@@ -601,14 +887,41 @@ async function handleAction(event, api, state, stateFile, isRiposte, threadID, m
   await message.reply(formatMessage(display));
 
   if (result.decision === 'one_shot' || result.decision === 'combat_termine') {
-    const winner = result.decision === 'one_shot' ? (result.winner === 'player1' ? p1Name : p2Name) : (pv1 > 0 ? p1Name : p2Name);
+    const winnerName = result.decision === 'one_shot' ? (result.winner === 'player1' ? p1Name : p2Name) : (pv1 > 0 ? p1Name : p2Name);
+    const winnerUID = result.decision === 'one_shot' ? (result.winner === 'player1' ? state.players.player1.uid : state.players.player2.uid) : (pv1 > 0 ? state.players.player1.uid : state.players.player2.uid);
+    
     const extra = result.decision === 'one_shot' ? `\nONE-SHOT ! Raison: ${result.one_shot_reason || 'Puissance écrasante !'}` : '';
     await message.reply(formatMessage(`Combat terminé !${extra}`));
-    await saveCombat(state, winner, threadID);
+    
+    const winnerCard = await drawWinnerCard(winnerName, winnerUID, usersData);
+    await message.reply({ attachment: winnerCard });
+
+    await saveCombat(state, winnerName, threadID);
+
+    if (state.tournament?.active && state.tournament?.currentMatchID) {
+        const upRes = await apiPost(`${API_URL}/tournament/update`, { 
+            tournamentID: state.tournament.id, 
+            matchID: state.tournament.currentMatchID, 
+            winnerUID: winnerUID 
+        }, { 'x-api-key': API_KEY });
+        
+        if (upRes.data.status === 'finished') {
+             await message.reply(formatMessage(`🎉 LE TOURNOI EST TERMINÉ !\nLE GRAND VAINQUEUR EST : ${winnerName.toUpperCase()} !`));
+        } else {
+             const bracketImage = await drawBracket(upRes.data.brackets, usersData);
+             await message.reply({ body: formatMessage(`Match terminé ! Mise à jour du tournoi...`), attachment: bracketImage });
+        }
+    }
     
     const cleanState = getInitialState();
-    await fs.writeFile(stateFile, JSON.stringify(cleanState, null, 2));
-    await fs.unlink(stateFile).catch(() => {});
+    if (state.tournament?.active) {
+         const tBackup = state.tournament;
+         state.tournament = tBackup;
+    }
+    await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+    if (!state.tournament?.active) {
+        await fs.unlink(stateFile).catch(() => {});
+    }
     state.status = 'idle';
     return;
   }
@@ -647,16 +960,5 @@ async function saveCombat(state, winner, threadID) {
     }, { 'x-api-key': API_KEY });
   } catch (err) {
     console.error('Erreur sauvegarde combat:', err);
-  }
-}
-
-async function startTournamentRound(api, message, tournamentID, brackets, stateFile, threadID) {
-  for (const match of brackets) {
-    if (!match.player2) {
-      await apiPost(`${API_URL}/tournament/update`, { tournamentID, matchID: match.matchID, winnerUID: match.player1.uid }, { 'x-api-key': API_KEY });
-      continue;
-    }
-    await api.sendMessage(formatMessage(`Match: ${match.player1.name} vs ${match.player2.name}\nPrêts ? Envoyez 'prêt' !`), threadID);
-    await api.sendMessage(formatMessage(`Les autres : Attendez votre tour.`), threadID);
   }
 }
