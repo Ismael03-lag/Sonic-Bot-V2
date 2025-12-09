@@ -3,10 +3,10 @@
 var utils = require("../utils");
 var log = require("npmlog");
 
-module.exports = function (defaultFuncs, api, ctx) {
-  return function unfriend(userID, callback) {
-    var resolveFunc = function () { };
-    var rejectFunc = function () { };
+module.exports = function(defaultFuncs, api, ctx) {
+  return function unFriend(userID, callback) {
+    var resolveFunc = function(){};
+    var rejectFunc = function(){};
     var returnPromise = new Promise(function (resolve, reject) {
       resolveFunc = resolve;
       rejectFunc = reject;
@@ -14,7 +14,9 @@ module.exports = function (defaultFuncs, api, ctx) {
 
     if (!callback) {
       callback = function (err, friendList) {
-        if (err) return rejectFunc(err);
+        if (err) {
+          return rejectFunc(err);
+        }
         resolveFunc(friendList);
       };
     }
@@ -27,16 +29,24 @@ module.exports = function (defaultFuncs, api, ctx) {
     };
 
     defaultFuncs
-      .post("https://www.facebook.com/ajax/profile/removefriendconfirm.php", ctx.jar, form)
+      .post(
+        "https://www.facebook.com/ajax/profile/removefriendconfirm.php",
+        ctx.jar,
+        form
+      )
       .then(utils.parseAndCheckLogin(ctx, defaultFuncs))
-      .then(function (resData) {
-        if (resData.error) throw resData;
+      .then(function(resData) {
+        if (resData.error) {
+          throw resData;
+        }
+
         return callback();
       })
-      .catch(function (err) {
+      .catch(function(err) {
         log.error("unfriend", err);
         return callback(err);
       });
+
     return returnPromise;
   };
 };
