@@ -3,7 +3,7 @@ const { utils } = global;
 const Canvas = require("canvas");
 const path = require("path");
 
-const BOT_UID = "61584501785548";
+const BOT_UID = "61579341020538";
 
 async function createPrefixImage(type, data, usersData) {
   try {
@@ -156,7 +156,7 @@ async function sendImage(api, event, imageBuffer) {
     
     await new Promise((resolve, reject) => {
       api.sendMessage({
-        body: "",
+        body: "▬▬▬▬▬▬▬▬▬▬▬▬▬",
         attachment: fs.createReadStream(filePath)
       }, event.threadID, (err, info) => {
         try {
