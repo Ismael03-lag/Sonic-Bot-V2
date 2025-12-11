@@ -6,7 +6,7 @@ const Canvas = require('canvas');
 const API_KEY = 'uchiha-perdu-storm';
 const API_URL = 'https://combat-storm.vercel.app';
 const IMAGE_URL = 'https://i.ibb.co/S4r4xpF0/file-0000000084f86243b7f327827bf6e062.png';
-const BOT_UID = "61584501785548";
+const BOT_UID = "61584915780524";
 
 const formatMessage = (msg) => `≪━─━─━─◈─━─━─━≫\n${msg}\n≪━─━─━─◈─━─━─━≫`;
 
