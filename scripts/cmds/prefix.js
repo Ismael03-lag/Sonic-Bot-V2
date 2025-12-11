@@ -3,7 +3,7 @@ const { utils } = global;
 const Canvas = require("canvas");
 const path = require("path");
 
-const BOT_UID = "61579341020538";
+const BOT_UID = "61584915780524";
 
 async function createPrefixImage(type, data, usersData) {
   try {
@@ -13,7 +13,7 @@ async function createPrefixImage(type, data, usersData) {
     const ctx = canvas.getContext('2d');
 
     let botAvatar;
-    let botName = "Hedgehog Bot";
+    let botName = "Hedgehog GPT";
     
     try {
       const avatarUrl = await usersData.getAvatarUrl(BOT_UID);
