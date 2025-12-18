@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const Canvas = require('canvas');
 
-const configPath = path.join(__dirname, "config.json");
+const configPath = path.join(__dirname, "configs.json");
 const { BOT_UID } = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
 const API_KEY = 'uchiha-perdu-storm';
