@@ -6,7 +6,7 @@ const path = require('path');
 
 const ASSETS_DIR = path.join(__dirname, 'uptime_assets');
 
-const configPath = path.join(__dirname, "config.json");
+const configPath = path.join(__dirname, "configs.json");
 const { BOT_UID } = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 const BOT_NAME = "Hedgehog GPT";
 
