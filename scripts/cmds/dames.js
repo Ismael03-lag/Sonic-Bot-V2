@@ -5,7 +5,7 @@ const { createCanvas, loadImage } = require('canvas');
 
 const STATS_FILE = path.join(__dirname, 'dames_stats.json');
 const ASSETS_DIR = path.join(__dirname, 'dames_assets');
-const BOT_UID = "61584915780524";
+const BOT_UID = "61579341020538";
 const BOT_NAME = "Hedgehog GPT";
 
 const damierGames = {};
@@ -608,3 +608,303 @@ async function startGameWithFriend(api, threadID, starterId, friendId, usersData
   }
   return api.sendMessage(`🔰| Partie démarrée entre ${starterName} (⚪) et ${friendName} (⚫).\n\n${displayDamier(board)}`, threadID);
 }
+
+/* ------- Export main module ------- */
+module.exports = {
+  config: {
+    name: "dames",
+    aliases: ["damiers", "checkers"],
+    version: "2.0",
+    author: "ʚʆɞ Sømå Sønïč ʚʆɞ & L'Uchiha Perdu",
+    category: "game",
+    shortDescription: "Jeu de dames Ultimate avec tournois, IA et mode image",
+    longDescription: "Jeu de dames avec mode IA, mode multijoueur, statistiques, mode image et tournois",
+    guide: {
+      en: "{pn} @ami | {pn} ia | {pn} stats | {pn} image on/off | {pn} tournoi | {pn} help"
+    }
+  },
+
+  onStart: async function ({ api, event, args, usersData }) {
+    const threadID = event.threadID;
+    const senderID = event.senderID;
+
+    ensurePlayerStats(senderID);
+
+    if (!args || args.length === 0) {
+      return api.sendMessage(
+        `👋| Bienvenu au jeu de Dames Ultimate !\n` +
+        `\n🎮 Pour commencer une partie :\n` +
+        `  •  Contre le bot : \`dames ia\` ou \`dames HedgehogGPT\`\n` +
+        `  •  Contre un ami : \`dames @nom_de_l_ami\`\n` +
+        `\n📊 Fonctionnalités :\n` +
+        `  •  Voir vos stats : \`dames stats\`\n` +
+        `  •  Mode image : \`dames image on/off\`\n` +
+        `  •  Tournoi : \`dames tournoi join|leave|start\`\n` +
+        `  •  Aide complète : \`dames help\`\n` +
+        `\n━━━━━━━━❪❐❫━━━━━━━━\n` +
+        `Amusez-vous bien ! 🎲`,
+        threadID,
+        event.messageID
+      );
+    }
+
+    const command = (args[0] || '').toLowerCase();
+    const arg1 = (args[1] || '').toLowerCase();
+
+    /* ----- Mode image on/off ----- */
+    if (command === 'image') {
+      if (arg1 === 'on') {
+        imageModeByThread[threadID] = true;
+        return api.sendMessage(
+          `◆━━━━━▣✦▣━━━━━━◆\n` +
+          `🎨 MODE IMAGE ACTIVÉ\n\n` +
+          `Les parties seront affichées en mode visuel.\n` +
+          `Pour désactiver : \`dames image off\`\n` +
+          `◆━━━━━▣✦▣━━━━━━◆`, 
+          threadID 
+        );
+      } else if (arg1 === 'off') {
+        imageModeByThread[threadID] = false;
+        return api.sendMessage(
+          `◆━━━━━▣✦▣━━━━━━◆\n` +
+          `🔧 Mode image désactivé.\n` +
+          `◆━━━━━▣✦▣━━━━━━◆`,
+          threadID
+        );
+      }
+      return api.sendMessage(`❓| Utilisation: \`dames image on\` ou \`dames image off\``, threadID);
+    }
+
+    /* ----- Help ----- */
+    if (command === 'help') {
+      return api.sendMessage(
+        "📜| Aide pour le jeu de Dames\n\n" +
+        "◆━━━━━▣✦▣━━━━━━◆\n" +
+        "Commandes disponibles :\n\n" +
+        "• dames @ami       → Démarrer une partie contre un ami\n" +
+        "• dames ia         → Démarrer une partie contre l'IA\n" +
+        "• dames image on   → Afficher les parties en image\n" +
+        "• dames image off  → Mode texte pour les parties\n" +
+        "• dames stats      → Voir vos statistiques\n" +
+        "• dames move a3 b4 → Jouer un coup (format: lettre+chiffre lettre+chiffre)\n" +
+        "• dames abandon    → Abandonner la partie en cours\n" +
+        "• dames tournoi join|leave|start → Gestion simple de tournoi\n\n" +
+        "Pendant une partie, envoyez `dames move a3 b4` pour jouer. Les positions utilisent a-h et 1-8.\n" +
+        "◆━━━━━▣✦▣━━━━━━◆",
+        threadID,
+        event.messageID
+      );
+    }
+
+    /* ----- Stats ----- */
+    if (command === 'stats') {
+      const targetId = senderID;
+      ensurePlayerStats(targetId);
+      if (imageModeByThread[threadID]) {
+        const img = await generateStatsImage(playerStats, targetId, usersData);
+        if (img) {
+          await sendImage(api, threadID, img, `📊| Statistiques`);
+          return;
+        }
+      }
+      // fallback texte
+      const stats = playerStats[targetId] || { wins: 0, losses: 0, draws: 0, played: 0 };
+      const winRate = stats.played > 0 ? Math.round((stats.wins / stats.played) * 100) : 0;
+      const name = await usersData.getName(targetId) || `Joueur ${targetId}`;
+      return api.sendMessage(
+        `📊| Statistiques de ${name}\n\n🏆 Victoires: ${stats.wins}\n💀 Défaites: ${stats.losses}\n🤝 Nuls: ${stats.draws}\n🎮 Parties: ${stats.played}\n📈 Ratio: ${winRate}%`,
+        threadID
+      );
+    }
+
+    /* ----- Start vs IA or vs friend ----- */
+    if (command === 'ia' || (args[0] && args[0].toLowerCase() === 'hedgehoggpt')) {
+      return startGameWithAI(api, threadID, senderID, usersData);
+    }
+
+    // démarrer contre ami : si mention present
+    if ((args[0] && args[0].startsWith('@')) || (event.mentions && Object.keys(event.mentions).length > 0)) {
+      let friendId = null;
+      if (event.mentions && Object.keys(event.mentions).length > 0) {
+        friendId = Object.keys(event.mentions)[0];
+      } else {
+        // si args[0] forme "@123456789"
+        const raw = args[0];
+        friendId = raw.replace('@', '');
+      }
+      if (friendId) {
+        return startGameWithFriend(api, threadID, senderID, friendId, usersData);
+      }
+    }
+
+    /* ----- Abandon ----- */
+    if (command === 'abandon') {
+      const game = damierGames[threadID];
+      if (!game || !game.inProgress) return api.sendMessage(`ℹ️| Aucune partie en cours.`, threadID);
+      const player = game.players.find(p => String(p.id) === String(senderID));
+      if (!player) return api.sendMessage(`❌| Vous ne participez pas à cette partie.`, threadID);
+      const opponent = game.players.find(p => String(p.id) !== String(senderID));
+      // update stats
+      ensurePlayerStats(senderID);
+      ensurePlayerStats(opponent.id);
+      playerStats[senderID].losses++;
+      playerStats[senderID].played++;
+      playerStats[opponent.id].wins++;
+      playerStats[opponent.id].played++;
+      saveStats();
+      delete damierGames[threadID];
+      return api.sendMessage(`🏳️| ${player.name} a abandonné. ${opponent.name} remporte la partie.`, threadID);
+    }
+
+    /* ----- Tournoi simple: join / leave / start ----- */
+    if (command === 'tournoi' || command === 'tournoi' || command === 'tournoi' ) {
+      const sub = (args[1] || '').toLowerCase();
+      if (!tournaments[threadID]) tournaments[threadID] = { participants: [], started: false };
+      const tour = tournaments[threadID];
+      if (sub === 'join') {
+        if (tour.started) return api.sendMessage(`❌| Le tournoi a déjà commencé.`, threadID);
+        if (tour.participants.includes(senderID)) return api.sendMessage(`ℹ️| Vous êtes déjà inscrit au tournoi.`, threadID);
+        tour.participants.push(senderID);
+        return api.sendMessage(`✅| Inscrit au tournoi. Participants: ${tour.participants.length}`, threadID);
+      } else if (sub === 'leave') {
+        if (tour.started) return api.sendMessage(`❌| Le tournoi a déjà commencé.`, threadID);
+        tour.participants = tour.participants.filter(p => String(p) !== String(senderID));
+        return api.sendMessage(`✅| Vous avez quitté le tournoi. Participants: ${tour.participants.length}`, threadID);
+      } else if (sub === 'start') {
+        if (tour.started) return api.sendMessage(`❌| Tournoi déjà lancé.`, threadID);
+        if (tour.participants.length < 2) return api.sendMessage(`❌| Il faut au moins 2 participants pour démarrer.`, threadID);
+        tour.started = true;
+        // simple pairing : on lance une partie entre le premier et le second (exemple)
+        const p1 = tour.participants[0];
+        const p2 = tour.participants[1];
+        await startGameWithFriend(api, threadID, p1, p2, usersData);
+        return api.sendMessage(`🏁| Tournoi démarré! Première partie: ${p1} vs ${p2}`, threadID);
+      } else {
+        return api.sendMessage(`❓| Utilisation: \`dames tournoi join|leave|start\``, threadID);
+      }
+    }
+
+    if (command === 'move' && args.length >= 3) {
+      const possibleMove = `${args[1]} ${args[2]}`;
+      const parsed = parseDamierMove(possibleMove);
+      if (parsed) {
+        const game = damierGames[threadID];
+        if (!game || !game.inProgress) return api.sendMessage(`ℹ️| Aucune partie en cours. Démarrez une partie avec 'dames ia' ou 'dames @ami'.`, threadID);
+        const current = game.players[game.turn];
+        if (String(current.id) !== String(senderID)) return api.sendMessage(`⏳| Ce n'est pas votre tour.`, threadID);
+        const [from, to] = parsed;
+        const valid = isValidMoveDamier(game.board, from, to, current.color);
+        if (!valid) return api.sendMessage(`❌| Coup invalide. Réessayez.`, threadID);
+        const piece = game.board[from[0]][from[1]];
+        game.board[to[0]][to[1]] = piece;
+        game.board[from[0]][from[1]] = EMPTY;
+        if (valid === 'prise') {
+          const midX = Math.floor((from[0] + to[0]) / 2);
+          const midY = Math.floor((from[1] + to[1]) / 2);
+          game.board[midX][midY] = EMPTY;
+        }
+        checkPromotion(game.board);
+        const hasBlanc = hasPieces(game.board, PION_B, DAME_B);
+        const hasNoir = hasPieces(game.board, PION_N, DAME_N);
+        if (!hasBlanc || !hasNoir) {
+          game.inProgress = false;
+          const winner = hasBlanc ? game.players.find(p => p.color === 'blanc') : game.players.find(p => p.color === 'noir');
+          const loser = game.players.find(p => p.id !== winner.id);
+          ensurePlayerStats(winner.id);
+          ensurePlayerStats(loser.id);
+          playerStats[winner.id].wins++;
+          playerStats[winner.id].played++;
+          playerStats[loser.id].losses++;
+          playerStats[loser.id].played++;
+          saveStats();
+          delete damierGames[threadID];
+          if (game.imageMode) {
+            const img = await generateBoardImage(game.board, winner, game.players, usersData);
+            if (img) {
+              await sendImage(api, threadID, img, `🎉| ${winner.name} remporte la partie !`);
+              return;
+            }
+          }
+          return api.sendMessage(`${displayDamier(game.board)}\n\n🎉| ${winner.name} remporte la partie !`, threadID);
+        }
+        game.turn = (game.turn + 1) % 2;
+        if (game.players[game.turn].id === 'AI') {
+          await botPlay(game, api, threadID, usersData);
+          return;
+        } else {
+          if (game.imageMode) {
+            const img = await generateBoardImage(game.board, game.players[game.turn], game.players, usersData);
+            if (img) {
+              await sendImage(api, threadID, img, `🔄| C'est au tour de ${game.players[game.turn].name}`);
+              return;
+            }
+          }
+          return api.sendMessage(`${displayDamier(game.board)}\n\n🔄| C'est au tour de ${game.players[game.turn].name}`, threadID);
+        }
+      }
+      return api.sendMessage(`❌| Format invalide. Utilisez: dames move a3 b4`, threadID);
+    }
+
+    if (args.length === 2) {
+      const possibleMove = `${args[0]} ${args[1]}`;
+      const parsed = parseDamierMove(possibleMove);
+      if (parsed) {
+        const game = damierGames[threadID];
+        if (!game || !game.inProgress) return api.sendMessage(`ℹ️| Aucune partie en cours. Démarrez une partie avec 'dames ia' ou 'dames @ami'.`, threadID);
+        const current = game.players[game.turn];
+        if (String(current.id) !== String(senderID)) return api.sendMessage(`⏳| Ce n'est pas votre tour.`, threadID);
+        const [from, to] = parsed;
+        const valid = isValidMoveDamier(game.board, from, to, current.color);
+        if (!valid) return api.sendMessage(`❌| Coup invalide. Réessayez.`, threadID);
+        const piece = game.board[from[0]][from[1]];
+        game.board[to[0]][to[1]] = piece;
+        game.board[from[0]][from[1]] = EMPTY;
+        if (valid === 'prise') {
+          const midX = Math.floor((from[0] + to[0]) / 2);
+          const midY = Math.floor((from[1] + to[1]) / 2);
+          game.board[midX][midY] = EMPTY;
+        }
+        checkPromotion(game.board);
+        const hasBlanc = hasPieces(game.board, PION_B, DAME_B);
+        const hasNoir = hasPieces(game.board, PION_N, DAME_N);
+        if (!hasBlanc || !hasNoir) {
+          game.inProgress = false;
+          const winner = hasBlanc ? game.players.find(p => p.color === 'blanc') : game.players.find(p => p.color === 'noir');
+          const loser = game.players.find(p => p.id !== winner.id);
+          ensurePlayerStats(winner.id);
+          ensurePlayerStats(loser.id);
+          playerStats[winner.id].wins++;
+          playerStats[winner.id].played++;
+          playerStats[loser.id].losses++;
+          playerStats[loser.id].played++;
+          saveStats();
+          delete damierGames[threadID];
+          if (game.imageMode) {
+            const img = await generateBoardImage(game.board, winner, game.players, usersData);
+            if (img) {
+              await sendImage(api, threadID, img, `🎉| ${winner.name} remporte la partie !`);
+              return;
+            }
+          }
+          return api.sendMessage(`${displayDamier(game.board)}\n\n🎉| ${winner.name} remporte la partie !`, threadID);
+        }
+        game.turn = (game.turn + 1) % 2;
+        if (game.players[game.turn].id === 'AI') {
+          await botPlay(game, api, threadID, usersData);
+          return;
+        } else {
+          if (game.imageMode) {
+            const img = await generateBoardImage(game.board, game.players[game.turn], game.players, usersData);
+            if (img) {
+              await sendImage(api, threadID, img, `🔄| C'est au tour de ${game.players[game.turn].name}`);
+              return;
+            }
+          }
+          return api.sendMessage(`${displayDamier(game.board)}\n\n🔄| C'est au tour de ${game.players[game.turn].name}`, threadID);
+        }
+      }
+    }
+
+    return api.sendMessage(`❓| Commande inconnue. Utilisez 'dames help' pour la liste des commandes.`, threadID);
+  }
+};
