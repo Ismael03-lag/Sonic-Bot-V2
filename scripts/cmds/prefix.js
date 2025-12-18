@@ -3,8 +3,8 @@ const { utils } = global;
 const Canvas = require("canvas");
 const path = require("path");
 
-const BOT_UID = "61584915780524";
-
+const configPath = path.join(__dirname, "config.json");
+const { BOT_UID } = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 async function createPrefixImage(type, data, usersData) {
   try {
     const width = 1000;
