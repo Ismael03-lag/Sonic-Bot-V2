@@ -13,14 +13,14 @@ const LANG = {
     no_commands: "⚠️ No commands available at the moment.\nCome back later! 🕒",
     invalid_page: "⚠️ Please specify a valid page number.\nAvailable pages: 1 to %1\n➤ Usage: store page <number>",
     command_list: "📜 List of commands (Page %1/%2):",
-    reply_to_buy: "📦 Reply with the number of the command to buy.\nExample: \"1\" for the first command",
+    reply_to_buy: "📦 Reply with the number to buy (add code optional).\nEx: \"1\" or \"1 SAVE20\"",
     specify_category: "⚠️ Please specify a category!\n➤ Usage: store search category <category>",
     no_category: "⚠️ No commands found in the specified category!\nTry another category or check the spelling. 🔍",
     commands_in_category: "📜 Commands in category \"%1\":",
     specify_search: "⚠️ Please specify the name of the command to search for!\n➤ Usage: store search <command name>",
     command_not_found: "⚠️ Command not found!\nThis command might be too common and has no value here.\nThis store is for elite commands only! 💎",
     invalid_price: "⚠️ The command \"%1\" has an invalid price!\nContact an administrator to fix this.",
-    command_found: "✅ Command \"%1\" found!\n🏆 Rank: %2\n💰 Price: %3 $\n\nWould you like to pay to get it? 🛍️\nReply with \"yes\" or \"no\"",
+    command_found: "✅ Command \"%1\" found!\n🏆 Rank: %2\n💰 Price: %3 $\n\nReply \"yes\" to buy (or \"yes CODE\").",
     add_command: "🛠️ 〖 StoreAdmin 〗 🛠️\n📝 Adding a new command.\nStep 1/6: Enter the command name (e.g., \"Join\"):\nReply with the name, or type \"cancel\" to stop.",
     invalid_command: "📌 Available commands:\n➤ store page <number>\n➤ store search <name>\n➤ store search category <cat>\n➤ store stats\n➤ store promo list\n➤ store put/promo add (admin)",
     purchase_success: "🎉 PURCHASE SUCCESSFUL! 🎉",
@@ -38,21 +38,22 @@ const LANG = {
     promo_title: "🎟️ PROMO CODES 🎟️",
     promo_added: "✅ Promo code added successfully!",
     promo_deleted: "🗑️ Promo code deleted successfully!",
-    promo_help: "Admin Usage:\nstore promo add <code> <discount> <duration>\nEx: store promo add SALE50 50 2h\n\nstore promo del <code>"
+    promo_help: "Admin Usage:\nstore promo add <code> <discount> <duration>\nEx: store promo add SALE50 50 2h\n\nstore promo del <code>",
+    promo_invalid_confirm: "❌ Promo code \"%1\" is invalid or expired.\n💰 Final Price: %2 $\n\nReply \"yes\" to pay full price or \"no\" to cancel."
   },
   fr: {
     store_name: "🛒 〖 CommandStore 〗 🛒",
     no_commands: "⚠️ Aucune commande disponible pour le moment.\nRevenez plus tard ! 🕒",
     invalid_page: "⚠️ Veuillez spécifier un numéro de page valide.\nPages disponibles : 1 à %1\n➤ Utilisation : store page <numéro>",
     command_list: "📜 Liste des commandes (Page %1/%2) :",
-    reply_to_buy: "📦 Répondez avec le numéro de la commande à acheter.\nExemple : \"1\" pour la première commande",
+    reply_to_buy: "📦 Répondez avec le numéro (code promo optionnel).\nEx: \"1\" ou \"1 SOLDES20\"",
     specify_category: "⚠️ Veuillez spécifier une catégorie !\n➤ Utilisation : store search category <catégorie>",
     no_category: "⚠️ Aucune commande trouvée dans cette catégorie !\nEssayez une autre catégorie ou vérifiez l'orthographe. 🔍",
     commands_in_category: "📜 Commandes dans la catégorie \"%1\" :",
     specify_search: "⚠️ Veuillez spécifier le nom de la commande à rechercher !\n➤ Utilisation : store search <nom de la commande>",
     command_not_found: "⚠️ Commande non trouvée !\nCette commande est peut-être trop commune et n'a aucune valeur ici.\nCe store est réservé aux commandes d'élite ! 💎",
     invalid_price: "⚠️ La commande \"%1\" a un prix invalide !\nContactez un administrateur pour régler ce problème.",
-    command_found: "✅ Commande \"%1\" trouvée !\n🏆 Rang : %2\n💰 Prix : %3 $\n\nVoulez-vous payer pour l'obtenir ? 🛍️\nRépondez avec \"yes\" ou \"no\"",
+    command_found: "✅ Commande \"%1\" trouvée !\n🏆 Rang : %2\n💰 Prix : %3 $\n\nRépondez \"oui\" pour acheter (ou \"oui CODE\").",
     add_command: "🛠️ 〖 StoreAdmin 〗 🛠️\n📝 Ajout d'une nouvelle commande.\nÉtape 1/6 : Entrez le nom de la commande (ex: \"Join\") :\nRépondez avec le nom, ou tapez \"cancel\" pour annuler.",
     invalid_command: "📌 Commandes disponibles :\n➤ store page <numéro>\n➤ store search <nom>\n➤ store search category <cat>\n➤ store stats\n➤ store promo list\n➤ store put/promo add (admin)",
     purchase_success: "🎉 ACHAT RÉUSSI ! 🎉",
@@ -70,7 +71,8 @@ const LANG = {
     promo_title: "🎟️ CODES PROMO 🎟️",
     promo_added: "✅ Code promo ajouté avec succès !",
     promo_deleted: "🗑️ Code promo supprimé avec succès !",
-    promo_help: "Utilisation Admin :\nstore promo add <code> <réduction> <durée>\nEx: store promo add SOLDE50 50 2h\n\nstore promo del <code>"
+    promo_help: "Utilisation Admin :\nstore promo add <code> <réduction> <durée>\nEx: store promo add SOLDE50 50 2h\n\nstore promo del <code>",
+    promo_invalid_confirm: "❌ Code promo \"%1\" invalide ou expiré.\n💰 Prix final : %2 $\n\nRépondez \"oui\" pour payer le prix fort ou \"non\" pour annuler."
   }
 };
 
@@ -79,7 +81,7 @@ let userLanguages = {};
 function formatNumber(number) {
   if (!Number.isFinite(number)) return "0";
   if (number < 1000) return number.toString();
-  const suffixes = [
+const suffixes = [
   "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No",
   "Dc", "Ud", "Dd", "Td", "Qad", "Qid", "Sxd", "Spd", "Od", "Nd",
   "Vg", "Uvg", "Dvg", "Tvg", "Qavg", "Qivg", "Sxvg", "Spvg", "Ovg", "Nvg",
@@ -93,13 +95,10 @@ function formatNumber(number) {
   "Cg"
 ];
   const tier = Math.log10(Math.abs(number)) / 3 | 0;
-  
   if (tier === 0) return number.toString();
-  
   const suffix = suffixes[tier];
   const scale = Math.pow(10, tier * 3);
   const scaled = number / scale;
-  
   return scaled.toFixed(1) + suffix;
 }
 
@@ -330,13 +329,10 @@ function getRankColor(rank) {
 async function sendImage(api, event, imageBuffer) {
   try {
     if (!imageBuffer) return null;
-    
     const timestamp = Date.now();
     const fileName = `store_${timestamp}.png`;
     const filePath = path.join(__dirname, fileName);
-    
     await fs.writeFile(filePath, imageBuffer);
-    
     const messageInfo = await new Promise((resolve, reject) => {
       api.sendMessage({
         attachment: fs.createReadStream(filePath)
@@ -345,7 +341,6 @@ async function sendImage(api, event, imageBuffer) {
         resolve(info);
       });
     });
-    
     setTimeout(() => {
       try {
         if (fs.existsSync(filePath)) {
@@ -353,7 +348,6 @@ async function sendImage(api, event, imageBuffer) {
         }
       } catch (e) {}
     }, 10000);
-    
     return messageInfo;
   } catch (error) {
     console.error("Image sending error:", error);
@@ -365,7 +359,7 @@ module.exports = {
   config: {
     name: "store",
     aliases: ["cmdstore", "commandstore"],
-    version: "5.5",
+    version: "6.0",
     role: 0,
     shortDescription: { en: "Access the premium command store", fr: "Accéder au store de commandes premium" },
     longDescription: { 
@@ -694,10 +688,68 @@ module.exports = {
       }
       
       const userLang = lang;
-      const response = event.body.trim().toLowerCase();
-      
+      const args = event.body.trim().split(/\s+/);
+      const mainResponse = args[0].toLowerCase();
+      const promoCode = args.length > 1 ? args[1] : null;
+
+      const getDiscountedPrice = async (originalPrice, code) => {
+        if (!code) return { price: originalPrice, discount: 0, codeName: null };
+        try {
+          const res = await axios.get(`${serverURL}/api/promo/${code}`, {
+             headers: { 'x-api-key': API_KEY }
+          });
+          
+          if (res.data.success && res.data.promo) {
+             const discountPercent = res.data.promo.discount;
+             const reduction = Math.floor(originalPrice * (discountPercent / 100));
+             const newPrice = originalPrice - reduction;
+             return { price: newPrice, discount: discountPercent, codeName: res.data.promo.code };
+          }
+        } catch (e) {
+          return { price: originalPrice, discount: 0, codeName: null, error: true };
+        }
+        return { price: originalPrice, discount: 0, codeName: null };
+      };
+
+      const handlePurchase = async (command, finalPrice, discount, codeName) => {
+          const userData = await usersData.get(event.senderID);
+          const userMoney = userData.money || 0;
+          
+          if (userMoney >= finalPrice) {
+            userData.money -= finalPrice;
+            await usersData.set(event.senderID, userData);
+            
+            let successMsg = `✅ Purchase successful!`;
+            if (discount > 0) successMsg += `\n🏷️ Promo used: ${codeName} (-${discount}%)`;
+            successMsg += `\n💰 Paid: ${formatNumber(finalPrice)} $\n💳 Remaining: ${formatNumber(userData.money)} $`;
+
+            const image = await createStoreImage('purchase_success', {
+              commandName: command.itemName,
+              price: finalPrice,
+              rank: command.rank,
+              category: command.category,
+              user: await usersData.getName(event.senderID),
+              message: successMsg
+            }, userLang);
+            
+            if (image) await sendImage(api, event, image);
+            
+            api.sendMessage(formatMessage(`${LANG[userLang].purchase_success}\n🔗 Link: ${command.pastebinLink}`, userLang), threadID, event.messageID);
+          } else {
+            const image = await createStoreImage('insufficient_funds', {
+              commandName: command.itemName,
+              price: finalPrice,
+              userMoney: userMoney,
+              message: `💸 Missing: ${formatNumber(finalPrice - userMoney)} $\n💰 Your balance: ${formatNumber(userMoney)} $\n💳 Required: ${formatNumber(finalPrice)} $`
+            }, userLang);
+            
+            if (image) await sendImage(api, event, image);
+            api.sendMessage(formatMessage(LANG[userLang].insufficient_funds, userLang), threadID, event.messageID);
+          }
+      };
+
       if (type === "select_page" || type === "select_category") {
-        const choice = parseInt(response);
+        const choice = parseInt(mainResponse);
         const { commands } = Reply;
         
         if (isNaN(choice) || choice < 1 || choice > commands.length) {
@@ -706,91 +758,69 @@ module.exports = {
         }
         
         const command = commands[choice - 1];
-        const userData = await usersData.get(event.senderID);
-        const userMoney = userData.money || 0;
+        const { price: finalPrice, discount, codeName, error } = await getDiscountedPrice(command.price, promoCode);
         
-        if (userMoney >= command.price) {
-          userData.money -= command.price;
-          await usersData.set(event.senderID, userData);
-          
-          const image = await createStoreImage('purchase_success', {
-            commandName: command.itemName,
-            price: command.price,
-            rank: command.rank,
-            category: command.category,
-            user: await usersData.getName(event.senderID),
-            message: `✅ Purchase successful!\n💰 Price: ${formatNumber(command.price)} $\n💳 Remaining: ${formatNumber(userData.money)} $`
-          }, userLang);
-          
-          if (image) {
-            await sendImage(api, event, image);
-          }
-          
-          api.sendMessage(formatMessage(`${LANG[userLang].purchase_success}\n🔗 Link: ${command.pastebinLink}`, userLang), threadID, event.messageID);
-          
-        } else {
-          const image = await createStoreImage('insufficient_funds', {
-            commandName: command.itemName,
-            price: command.price,
-            userMoney: userMoney,
-            message: `💸 Missing: ${formatNumber(command.price - userMoney)} $\n💰 Your balance: ${formatNumber(userMoney)} $\n💳 Required: ${formatNumber(command.price)} $`
-          }, userLang);
-          
-          if (image) {
-            await sendImage(api, event, image);
-          }
-          
-          api.sendMessage(formatMessage(LANG[userLang].insufficient_funds, userLang), threadID, event.messageID);
+        if (promoCode && error) {
+            const warnMsg = LANG[userLang].promo_invalid_confirm.replace("%1", promoCode).replace("%2", formatNumber(finalPrice));
+            api.sendMessage(formatMessage(warnMsg, userLang), threadID, (err, info) => {
+                if (err) return;
+                global.GoatBot.onReply.set(info.messageID, {
+                  commandName: "store",
+                  type: "confirm_force_buy",
+                  command: command,
+                  finalPrice: finalPrice,
+                  userID: event.senderID,
+                  threadID: event.threadID,
+                  expiresAt: Date.now() + 300000,
+                  lang: userLang
+                });
+            });
+            return;
         }
-        
+
+        await handlePurchase(command, finalPrice, discount, codeName);
         return;
       }
       
       if (type === "confirm_purchase") {
         const { command } = Reply;
         
-        if (response === 'yes' || response === 'oui' || response === 'y' || response === 'o') {
-          const userData = await usersData.get(event.senderID);
-          const userMoney = userData.money || 0;
-          
-          if (userMoney >= command.price) {
-            userData.money -= command.price;
-            await usersData.set(event.senderID, userData);
-            
-            const image = await createStoreImage('purchase_success', {
-              commandName: command.itemName,
-              price: command.price,
-              rank: command.rank,
-              category: command.category,
-              user: await usersData.getName(event.senderID),
-              message: `🎉 Congratulations!\n💰 Remaining: ${formatNumber(userData.money)} $\n📝 Use the command wisely!`
-            }, userLang);
-            
-            if (image) {
-              await sendImage(api, event, image);
-            }
-            
-            api.sendMessage(formatMessage(`${LANG[userLang].purchase_success}\n🔗 ${command.pastebinLink}`, userLang), threadID, event.messageID);
-            
-          } else {
-            const image = await createStoreImage('insufficient_funds', {
-              commandName: command.itemName,
-              price: command.price,
-              userMoney: userMoney,
-              message: `❌ Transaction failed!\n💸 Missing: ${formatNumber(command.price - userMoney)} $\n💰 Your balance: ${formatNumber(userMoney)} $`
-            }, userLang);
-            
-            if (image) {
-              await sendImage(api, event, image);
-            }
-            
-            api.sendMessage(formatMessage(LANG[userLang].insufficient_funds, userLang), threadID, event.messageID);
+        if (mainResponse === 'yes' || mainResponse === 'oui' || mainResponse === 'y' || mainResponse === 'o') {
+          const { price: finalPrice, discount, codeName, error } = await getDiscountedPrice(command.price, promoCode);
+
+          if (promoCode && error) {
+            const warnMsg = LANG[userLang].promo_invalid_confirm.replace("%1", promoCode).replace("%2", formatNumber(finalPrice));
+            api.sendMessage(formatMessage(warnMsg, userLang), threadID, (err, info) => {
+                if (err) return;
+                global.GoatBot.onReply.set(info.messageID, {
+                  commandName: "store",
+                  type: "confirm_force_buy",
+                  command: command,
+                  finalPrice: finalPrice,
+                  userID: event.senderID,
+                  threadID: event.threadID,
+                  expiresAt: Date.now() + 300000,
+                  lang: userLang
+                });
+            });
+            return;
           }
+
+          await handlePurchase(command, finalPrice, discount, codeName);
         } else {
           api.sendMessage(formatMessage(LANG[userLang].purchase_cancelled, userLang), threadID, event.messageID);
         }
-        
         return;
+      }
+
+      if (type === "confirm_force_buy") {
+          const { command, finalPrice } = Reply;
+          if (mainResponse === 'yes' || mainResponse === 'oui' || mainResponse === 'y' || mainResponse === 'o') {
+              await handlePurchase(command, finalPrice, 0, null);
+          } else {
+              api.sendMessage(formatMessage(LANG[userLang].purchase_cancelled, userLang), threadID, event.messageID);
+          }
+          return;
       }
       
       if (type === "put_form") {
@@ -800,8 +830,9 @@ module.exports = {
         }
         
         const { step, formData } = Reply;
-        
-        if (response === 'cancel') {
+        const formResponse = event.body.trim(); 
+
+        if (formResponse.toLowerCase() === 'cancel') {
           api.sendMessage(formatMessage("Command addition cancelled", userLang), threadID, event.messageID);
           return;
         }
@@ -821,54 +852,45 @@ module.exports = {
         };
 
         if (step === 1) {
-          formData.itemName = response;
+          formData.itemName = formResponse;
           nextStep("Step 2/6: Enter command author:", 2, formData);
           return;
         }
-        
         if (step === 2) {
-          formData.authorName = response;
+          formData.authorName = formResponse;
           nextStep("Step 3/6: Enter rank (S/A/B/C/D):", 3, formData);
           return;
         }
-        
         if (step === 3) {
-          formData.rank = response.toUpperCase();
+          formData.rank = formResponse.toUpperCase();
           nextStep("Step 4/6: Enter price:", 4, formData);
           return;
         }
-        
         if (step === 4) {
-          const price = Number(response);
+          const price = Number(formResponse);
           if (isNaN(price) || price <= 0) {
             api.sendMessage(formatMessage("Invalid price! Must be a number > 0", userLang), threadID, event.messageID);
             return;
           }
-          
           formData.price = price;
           nextStep("Step 5/6: Enter Pastebin link:", 5, formData);
           return;
         }
-        
         if (step === 5) {
-          if (!response.startsWith("https://pastebin.com/")) {
+          if (!formResponse.startsWith("https://pastebin.com/")) {
             api.sendMessage(formatMessage("Must be a Pastebin link (https://pastebin.com/)!", userLang), threadID, event.messageID);
             return;
           }
-          
-          formData.pastebinLink = response;
+          formData.pastebinLink = formResponse;
           nextStep("Step 6/6: Enter category:", 6, formData);
           return;
         }
-        
         if (step === 6) {
-          formData.category = response;
-          
+          formData.category = formResponse;
           try {
             await axios.put(`${serverURL}/api/commands/${formData.itemName}`, formData, {
               headers: { 'x-api-key': API_KEY }
             });
-            
             const image = await createStoreImage('purchase_success', {
               commandName: formData.itemName,
               price: formData.price,
@@ -877,15 +899,9 @@ module.exports = {
               author: formData.authorName,
               message: `✅ Command added successfully!\n💰 Price: ${formatNumber(formData.price)} $\n🏆 Rank: ${formData.rank}`
             }, userLang);
-            
-            if (image) {
-              await sendImage(api, event, image);
-            }
-            
+            if (image) await sendImage(api, event, image);
             api.sendMessage(formatMessage(`Command "${formData.itemName}" added successfully!`, userLang), threadID, event.messageID);
-            
           } catch (error) {
-            console.error('Add command error:', error);
             api.sendMessage(formatMessage(`Error adding command: ${error.message}`, userLang), threadID, event.messageID);
           }
           return;
