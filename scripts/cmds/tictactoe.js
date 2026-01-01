@@ -5,8 +5,7 @@ const { createCanvas, loadImage } = require('canvas');
 const STATS_FILE = path.join(__dirname, 'tictactoe_stats.json');
 const ASSETS_DIR = path.join(__dirname, 'tictactoe_assets');
 
-const configPath = path.join(__dirname, "configs.json");
-const { BOT_UID } = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+const BOT_UID = global.botID;
 const BOT_NAME = "Hedgehog GPT";
 
 let games = {};
