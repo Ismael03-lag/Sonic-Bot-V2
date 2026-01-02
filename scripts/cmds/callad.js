@@ -32,7 +32,7 @@ module.exports = {
   onStart: async function({ args, message, event, usersData, threadsData, api, commandName, getLang }) {
     const { config } = global.GoatBot;
     const TARGET_GROUP_ID = global.GoatBot.config && (global.GoatBot.config.targetGroupID || global.GoatBot.config.TARGET_GROUP_ID) ? (global.GoatBot.config.targetGroupID || global.GoatBot.config.TARGET_GROUP_ID) : "2852439588294507";
-    if (!TARGET_GROUP_ID || TARGET_GROUP_ID === "ID_DU_GROUPE_ICI") return message.reply(getLang("noTargetGroup"));
+    if (!TARGET_GROUP_ID || TARGET_GROUP_ID === "ID_DU_GROUPE") return message.reply(getLang("noTargetGroup"));
     if (!args[0]) return message.reply(getLang("missingMessage"));
     const { senderID, threadID, isGroup } = event;
     if (!config.adminBot || config.adminBot.length === 0) return message.reply(getLang("noAdmin"));
