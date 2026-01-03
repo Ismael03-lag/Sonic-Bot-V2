@@ -24,8 +24,8 @@
     "100083846212138"
   ],
   "whiteListMode": {
-    "enable": true,
-    "whiteListIds": ["100083846212138"],
+    "enable": false,
+    "whiteListIds": ["100083846212138", "61578433048588"],
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
   "nickNameBot": "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ",
