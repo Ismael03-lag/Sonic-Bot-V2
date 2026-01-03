@@ -1,7 +1,7 @@
 "use strict";
 
 const utils = require("../utils");
-const log = require("npmlog");
+// @NethWs3Dev
 
 module.exports = function (defaultFuncs, api, ctx) {
   return function setMessageReaction(
@@ -82,7 +82,7 @@ module.exports = function (defaultFuncs, api, ctx) {
     const variables = {
       data: {
         client_mutation_id: ctx.clientMutationId++,
-        actor_id: ctx.i_userID || ctx.userID,
+        actor_id: ctx.userID,
         action: reaction == "" ? "REMOVE_REACTION" : "ADD_REACTION",
         message_id: messageID,
         reaction: reaction,
@@ -113,7 +113,7 @@ module.exports = function (defaultFuncs, api, ctx) {
         callback(null);
       })
       .catch(function (err) {
-        log.error("setReaction", err);
+        utils.error("setReaction", err);
         return callback(err);
       });
 
