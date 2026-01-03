@@ -23,38 +23,32 @@ module.exports = {
 	},
 
 	onStart: async ({ usersData, threadsData, event, api, getLang }) => {
-		if (
-			(event.logMessageType == "log:subscribe" && event.logMessageData.addedParticipants.some(item => item.userFbId == api.getCurrentUserID()))
-			|| (event.logMessageType == "log:unsubscribe" && event.logMessageData.leftParticipantFbId == api.getCurrentUserID())
-		) return async function () {
-			const TARGET_GROUP_ID = "ID_DU_GROUPE_LOGS";
-			
-			if (!TARGET_GROUP_ID || TARGET_GROUP_ID === "2852439588294507") return;
+		if (!event.logMessageData) return;
 
-			const { author, threadID } = event;
-			if (author == api.getCurrentUserID()) return;
+		const TARGET_GROUP_ID = "2852439588294507";
+		if (!TARGET_GROUP_ID) return;
 
-			let threadName;
-			let userName;
-			let type;
+		const { author, threadID } = event;
+		if (author == api.getCurrentUserID()) return;
 
-			if (event.logMessageType == "log:subscribe") {
-				if (!event.logMessageData.addedParticipants.some(item => item.userFbId == api.getCurrentUserID())) return;
-				threadName = (await api.getThreadInfo(threadID)).threadName;
-				userName = await usersData.getName(author);
-				type = "added";
-			}
-			else if (event.logMessageType == "log:unsubscribe") {
-				if (event.logMessageData.leftParticipantFbId != api.getCurrentUserID()) return;
-				const threadData = await threadsData.get(threadID);
-				threadName = threadData.threadName;
-				userName = await usersData.getName(author);
-				type = "kicked";
-			}
+		let threadName, userName, type;
 
-			const time = getTime("DD/MM/YYYY HH:mm:ss");
-			
-			const logText = 
+		if (event.logMessageType == "log:subscribe") {
+			if (!event.logMessageData.addedParticipants.some(item => item.userFbId == api.getCurrentUserID())) return;
+			threadName = (await api.getThreadInfo(threadID)).threadName;
+			userName = await usersData.getName(author);
+			type = "added";
+		} else if (event.logMessageType == "log:unsubscribe") {
+			if (event.logMessageData.leftParticipantFbId != api.getCurrentUserID()) return;
+			const threadData = await threadsData.get(threadID);
+			threadName = threadData.threadName;
+			userName = await usersData.getName(author);
+			type = "kicked";
+		}
+
+		const time = getTime("DD/MM/YYYY HH:mm:ss");
+
+		const logText = 
 `◆ ▬▬▬▬ ❴✪❵ ▬▬▬▬ ◆
 
 〘 ${type === "added" ? "𝑨𝑱𝑶𝑼𝑻 𝑫𝑼 𝑩𝑶𝑻" : "𝑬𝑿𝑷𝑼𝑳𝑺𝑰𝑶𝑵 𝑫𝑼 𝑩𝑶𝑻"} 〙
@@ -70,20 +64,16 @@ module.exports = {
 
 ◆ ▬▬▬▬ ❴✪❵ ▬▬▬▬ ◆`;
 
-			try {
-				await api.sendMessage(logText, TARGET_GROUP_ID);
-				
-				const logImage = await this.createLogCanvas(type, userName, threadName, threadID, time);
-				const imagePath = path.join(__dirname, `logs_${threadID}_${Date.now()}.png`);
-				fs.writeFileSync(imagePath, logImage);
-				
-				await api.sendMessage({ attachment: fs.createReadStream(imagePath) }, TARGET_GROUP_ID);
-				
-				fs.unlinkSync(imagePath);
-			} catch (err) {
-				console.error("Erreur logsbot:", err);
-			}
-		}.bind(this);
+		try {
+			await api.sendMessage(logText, TARGET_GROUP_ID);
+			const logImage = await module.exports.createLogCanvas(type, userName, threadName, threadID, time);
+			const imagePath = path.join(__dirname, `logs_${threadID}_${Date.now()}.png`);
+			fs.writeFileSync(imagePath, logImage);
+			await api.sendMessage({ attachment: fs.createReadStream(imagePath) }, TARGET_GROUP_ID);
+			fs.unlinkSync(imagePath);
+		} catch (err) {
+			console.error("Erreur logsbot:", err);
+		}
 	},
 
 	createLogCanvas: async function (type, userName, groupName, groupID, time) {
