@@ -5,7 +5,7 @@ module.exports = {
   config: {
     name: "welcomefont",
     version: "1.0",
-    author: "TonNom",
+    author: "L'Uchiha Perdu",
     category: "Group",
     description: "Définir ou réinitialiser le fond d'écran des messages de bienvenue"
   },
@@ -32,8 +32,23 @@ module.exports = {
       }
 
       try {
-        const response = await global.utils.getStreamFromURL(attachment.url);
-        const buffer = await getBufferFromStream(response);
+     
+        let buffer;
+        if (global.utils.getStreamFromURL) {
+          try {
+            const stream = await global.utils.getStreamFromURL(attachment.url);
+            buffer = await streamToBuffer(stream);
+          } catch (streamError) {
+  
+            const response = await fetch(attachment.url);
+            const arrayBuffer = await response.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+          }
+        } else {
+          const response = await fetch(attachment.url);
+          const arrayBuffer = await response.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+        }
         
         const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
         await fs.ensureDir(fontDir);
@@ -47,42 +62,52 @@ module.exports = {
         
         message.reply("✅ Fond de bienvenue défini avec succès !");
       } catch (error) {
-        console.error(error);
-        message.reply("❌ Erreur lors du téléchargement de l'image.");
+        console.error("Erreur complète:", error);
+        message.reply("❌ Erreur lors du téléchargement de l'image. Vérifiez que l'image est accessible.");
       }
     }
     else if (action === "reset") {
-      const threadData = await threadsData.get(threadID);
-      const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
-      const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
-      
-      if (fs.existsSync(fontPath)) {
-        await fs.unlink(fontPath);
+      try {
+        const threadData = await threadsData.get(threadID);
+        const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
+        const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
+        
+        if (fs.existsSync(fontPath)) {
+          await fs.unlink(fontPath);
+        }
+        
+        delete threadData.data.welcomeFont;
+        await threadsData.set(threadID, threadData);
+        
+        message.reply("✅ Fond de bienvenue réinitialisé au style par défaut !");
+      } catch (error) {
+        console.error("Erreur reset:", error);
+        message.reply("❌ Erreur lors de la réinitialisation.");
       }
-      
-      delete threadData.data.welcomeFont;
-      await threadsData.set(threadID, threadData);
-      
-      message.reply("✅ Fond de bienvenue réinitialisé au style par défaut !");
     }
     else if (action === "view") {
-      const threadData = await threadsData.get(threadID);
-      const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
-      const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
-      
-      if (threadData.data.welcomeFont && fs.existsSync(fontPath)) {
-        message.reply({
-          attachment: fs.createReadStream(fontPath),
-          body: "🎨 Fond de bienvenue actuel :"
-        });
-      } else {
-        message.reply("ℹ️ Aucun fond personnalisé défini. Le style par défaut est utilisé.");
+      try {
+        const threadData = await threadsData.get(threadID);
+        const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
+        const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
+        
+        if (fs.existsSync(fontPath)) {
+          message.reply({
+            attachment: fs.createReadStream(fontPath),
+            body: "🎨 Fond de bienvenue actuel :"
+          });
+        } else {
+          message.reply("ℹ️ Aucun fond personnalisé défini. Le style par défaut est utilisé.");
+        }
+      } catch (error) {
+        console.error("Erreur view:", error);
+        message.reply("❌ Erreur lors de l'affichage du fond.");
       }
     }
   }
 };
 
-function getBufferFromStream(stream) {
+function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     stream.on("data", (chunk) => chunks.push(chunk));
