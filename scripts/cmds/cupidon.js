@@ -2,21 +2,14 @@ const { createCanvas, loadImage } = require("canvas");
 const fs = require("fs");
 const path = require("path");
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawHeart(ctx, x, y, size, color) {
+function drawHeart(ctx, x, y, size, color, opacity = 1, glow = false) {
   ctx.save();
+  ctx.globalAlpha = opacity;
   ctx.fillStyle = color;
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+  if (glow) {
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = color;
+  }
   ctx.beginPath();
   const h = size * 0.3;
   ctx.moveTo(x, y + h);
@@ -31,10 +24,10 @@ function drawHeart(ctx, x, y, size, color) {
 module.exports = {
   config: {
     name: "cupidon",
-    version: "5.0",
+    version: "8.0",
     author: "Sømå Sønïč",
     role: 0,
-    shortDescription: { en: "🖤💘 Cupidon Ultra-Réaliste" },
+    shortDescription: { en: "🖤💘 Cupidon Cinematic Background Edition" },
     guide: { en: "{p}cupidon @tag" },
   },
 
@@ -55,100 +48,95 @@ module.exports = {
       const canvas = createCanvas(1200, 650);
       const ctx = canvas.getContext("2d");
 
-      const mainGrad = ctx.createLinearGradient(0, 0, 0, 650);
-      mainGrad.addColorStop(0, "#0a0a0b");
-      mainGrad.addColorStop(0.5, "#160a0a");
-      mainGrad.addColorStop(1, "#050505");
-      ctx.fillStyle = mainGrad;
+      let heartColor, status, statusColor;
+      if (lovePercent >= 85) {
+        heartColor = "#ff0000";
+        status = "AMOUR ABSOLU";
+        statusColor = "#ff0000";
+      } else if (lovePercent >= 50) {
+        heartColor = "#ffffff";
+        status = "ESPOIR RÉEL";
+        statusColor = "#ffffff";
+      } else {
+        heartColor = "#333333";
+        status = "FRIENDZONE";
+        statusColor = "#777777";
+      }
+
+      const bgGrad = ctx.createRadialGradient(600, 325, 0, 600, 325, 650);
+      bgGrad.addColorStop(0, "#1a0808");
+      bgGrad.addColorStop(1, "#000000");
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, 1200, 650);
 
-      const vignette = ctx.createRadialGradient(600, 325, 100, 600, 325, 700);
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.8)");
-      ctx.fillStyle = vignette;
-      ctx.fillRect(0, 0, 1200, 650);
+      for (let i = 0; i < 40; i++) {
+        const x = Math.random() * 1200;
+        const y = Math.random() * 650;
+        const size = Math.random() * 30 + 10;
+        drawHeart(ctx, x, y, size, heartColor, 0.15, false);
+      }
 
       const token = "6628568379%7Cc1e620fa708a1d5696fb991c1bde5662";
       const av1 = await loadImage(`https://graph.facebook.com/${user1}/picture?width=512&height=512&access_token=${token}`);
       const av2 = await loadImage(`https://graph.facebook.com/${user2}/picture?width=512&height=512&access_token=${token}`);
 
-      const renderProfile = (img, x, themeColor) => {
+      const drawAvatar = (img, x) => {
         ctx.save();
+        ctx.shadowBlur = 40;
+        ctx.shadowColor = "rgba(0,0,0,1)";
         ctx.beginPath();
-        ctx.arc(x, 280, 145, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        ctx.arc(x, 250, 135, 0, Math.PI * 2);
+        ctx.fillStyle = "#000000";
         ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(x, 280, 135, 0, Math.PI * 2);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = themeColor;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(x, 280, 125, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, x - 125, 280 - 125, 250, 250);
         
-        const overlay = ctx.createLinearGradient(x, 155, x, 405);
-        overlay.addColorStop(0, "rgba(0,0,0,0.2)");
-        overlay.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = overlay;
-        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, 250, 130, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.1)";
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.clip();
+        ctx.drawImage(img, x - 130, 250 - 130, 260, 260);
         ctx.restore();
       };
 
-      renderProfile(av1, 300, "#6b0f0f");
-      renderProfile(av2, 900, "#d4af37");
+      drawAvatar(av1, 250);
+      drawAvatar(av2, 950);
 
-      const centerX = 600, centerY = 280;
-      
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 90, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.05)";
-      ctx.lineWidth = 10;
-      ctx.stroke();
-
-      const angle = (lovePercent / 100) * (Math.PI * 2);
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 90, -Math.PI/2, -Math.PI/2 + angle);
-      ctx.strokeStyle = lovePercent > 70 ? "#d4af37" : "#8b0000";
-      ctx.lineWidth = 12;
-      ctx.lineCap = "round";
-      ctx.stroke();
-
-      drawHeart(ctx, centerX, centerY - 20, 45, lovePercent > 70 ? "#d4af37" : "#8b0000");
+      const centerX = 600, centerY = 250;
+      drawHeart(ctx, centerX, centerY - 40, 100, heartColor, 0.9, true);
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 55px sans-serif";
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.fillText(`${lovePercent}%`, centerX, centerY + 30);
+      ctx.font = "bold 85px sans-serif";
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = "rgba(0,0,0,1)";
+      ctx.fillText(`${lovePercent}%`, centerX, centerY + 180);
 
-      ctx.font = "28px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.03)";
+      ctx.fillRect(150, 480, 900, 130);
+      ctx.strokeStyle = statusColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(150, 480, 900, 130);
+
+      ctx.font = "bold 70px sans-serif";
+      ctx.fillStyle = statusColor;
+      ctx.letterSpacing = "12px";
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = statusColor;
+      ctx.fillText(status, centerX, 565);
+
+      ctx.font = "22px sans-serif";
       ctx.letterSpacing = "4px";
-      ctx.fillStyle = "rgba(255,255,255,0.8)";
-      ctx.fillText(name1, 300, 480);
-      ctx.fillText(name2, 900, 480);
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      ctx.shadowBlur = 0;
+      ctx.fillText(name1, 250, 430);
+      ctx.fillText(name2, 950, 430);
 
-      const barW = 500, barH = 4, barX = 350, barY = 550;
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = "#d4af37";
-      ctx.fillRect(barX, barY, (lovePercent/100) * barW, barH);
-
-      const status = lovePercent > 85 ? "DESTINÉS" : lovePercent > 50 ? "PASSIONNÉS" : "ÉPHÉMÈRE";
-      ctx.font = "bold 20px sans-serif";
-      ctx.letterSpacing = "8px";
-      ctx.fillStyle = "#d4af37";
-      ctx.fillText(status, centerX, 600);
-
-      const filePath = path.join(__dirname, `cupidon_realiste_${Date.now()}.png`);
+      const filePath = path.join(__dirname, `cupidon_bg_${Date.now()}.png`);
       fs.writeFileSync(filePath, canvas.toBuffer());
 
       await message.reply({
-        body: `🌑 𝗖𝗨𝗣𝗜𝗗𝗢𝗡 𝗧𝗘𝗦𝗧 🌕 \n────────────────\n📍| 𝗣𝗥𝗢𝗕𝗔𝗕𝗜𝗟𝗜𝗧𝗬 : ${lovePercent}%\n👥| 𝗘́𝘁𝗮𝘁 : ${status}`,
+        body: `🌑 𝗔𝗡𝗔𝗟𝗬𝗦𝗘 𝗖𝗜𝗡𝗘́𝗠𝗔𝗧𝗜𝗤𝗨𝗘\n────────────────\nScore : ${lovePercent}%\nVerdict : ${status}`,
         attachment: fs.createReadStream(filePath)
       });
       
@@ -156,7 +144,7 @@ module.exports = {
 
     } catch (error) {
       console.error(error);
-      message.reply("Une erreur technique est survenue.");
+      message.reply("Erreur lors de la création du fond cinématographique.");
     }
   }
 };
