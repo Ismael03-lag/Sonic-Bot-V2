@@ -175,13 +175,24 @@ module.exports = {
 
       if (data.generated_image && data.generated_image.url) {
         try {
-          const imageResponse = await axios({
-            url: data.generated_image.url,
-            method: 'GET',
-            responseType: 'stream',
-            timeout: 30000
-          });
-          await message.reply({ attachment: imageResponse.data });
+          let imageUrl = data.generated_image.url;
+          
+          if (imageUrl.startsWith('data:image/')) {
+            const base64Data = imageUrl.split(',')[1];
+            const imageBuffer = Buffer.from(base64Data, 'base64');
+            const tempFilePath = path.join(__dirname, `temp_gen_${Date.now()}.jpg`);
+            fs.writeFileSync(tempFilePath, imageBuffer);
+            await message.reply({ attachment: fs.createReadStream(tempFilePath) });
+            fs.unlinkSync(tempFilePath);
+          } else {
+            const imageResponse = await axios({
+              url: imageUrl,
+              method: 'GET',
+              responseType: 'stream',
+              timeout: 30000
+            });
+            await message.reply({ attachment: imageResponse.data });
+          }
         } catch {
           await message.reply("L'image générée n'a pas pu être envoyée.");
         }
