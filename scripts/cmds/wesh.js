@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const Canvas = require('canvas');
 
-const BOT_UID = global.botID ;
+const BOT_UID = global.botID;
 
 const API_KEY = 'uchiha-perdu-storm';
 const API_URL = 'https://combat-storm.vercel.app';
@@ -48,8 +48,9 @@ function safeParseJSON(input) {
   if (typeof input === 'object' && input !== null) return input;
   if (!input) return null;
   let str = input.toString().trim();
-  try { return JSON.parse(str); } 
-  catch (e) {
+  try {
+      return JSON.parse(str);
+  } catch (e) {
       const match = str.match(/\{[\s\S]*\}/); 
       if (match) { try { return JSON.parse(match[0]); } catch (err) {} }
       return null;
@@ -282,7 +283,7 @@ async function drawMatchBox(ctx, match, x, y, w, h, usersData) {
 module.exports = {
   config: {
     name: 'uchiha-storm',
-    version: '21.0.0',
+    version: '19.0.0',
     author: 'L\'Uchiha Perdu',
     countDown: 5,
     role: 0,
@@ -334,7 +335,7 @@ module.exports = {
             `🔹 ${prefix}uchiha-storm stop : Arrêter\n`
           ));
       } else {
-          await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu"`));
+          await message.reply(formatMessage(`Bienvenue à Uchiha Storm, ${senderName} !\n\nTapez "${prefix}${this.config.name} menu" pour les commandes.`));
           if (attachment) await message.reply({ attachment });
       }
       return;
@@ -413,8 +414,12 @@ module.exports = {
           state.status = 'tournament_lobby';
           await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
           const bracketImage = await drawBracket(brackets, round, usersData);
+          
+   
           let msg = `🏆 Tournoi démarré (Round ${round}) !\n\n`;
-          brackets.forEach(m => msg += `${m.player1.name} vs ${m.player2 ? m.player2.name : 'BYE'}\n`;
+          brackets.forEach(m => msg += `${m.player1.name} vs ${m.player2 ? m.player2.name : 'BYE'}\n`);
+
+          
           msg += `\nLes combattants, envoyez "prêt" !`;
           await message.reply(formatMessage(msg));
           await message.reply({ attachment: bracketImage });
@@ -454,7 +459,7 @@ module.exports = {
       return;
     }
 
-    if (['stop', 'forfait', 'fin', 'quitter'].includes(txt)) {
+    if (['stop', 'forfait', 'fin'].includes(txt)) {
       const winner = senderID === state.players.player1.uid ? (state.players.player2?.name || 'Joueur 2') : (state.players.player1?.name || 'Joueur 1');
       await message.reply(formatMessage(`${userData.name || 'Joueur'} abandonne !\n\n${winner} gagne par forfait !`));
       if (state.tournament?.active && state.tournament?.currentMatchID) {
@@ -578,9 +583,9 @@ module.exports = {
         }
 
       } catch (err) {
+        await message.reply(formatMessage(`⚠️ ERREUR TECHNIQUE ⚠️\nDétail: ${err.message}\nLa partie a été réinitialisée.`));
         state = getInitialState();
         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-        await message.reply(formatMessage(`Erreur API. Reset.`));
         await fs.unlink(stateFile).catch(() => {});
       } finally {
         if (state.status !== 'idle') {
@@ -598,14 +603,17 @@ module.exports = {
       if (state.processing) return;
       state.processing = true;
       await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      
       try {
         await handleAction(event, api, state, stateFile, state.status === 'riposte', threadID, message, usersData);
-        
         let newState = JSON.parse(await fs.readFile(stateFile));
         if (newState.status !== 'idle' && newState.currentTurn === 'player2' && newState.isAI) {
           await iaTurn(api, newState, stateFile, threadID, message, usersData);
         }
-
+      } catch(err) {
+         await message.reply(formatMessage(`Erreur pendant le combat: ${err.message}`));
+         state.processing = false;
+         await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
       } finally {
         if (state.status !== 'idle') {
             state.processing = false;
@@ -632,22 +640,27 @@ async function generateIaCharacter(state, stateFile, message, senderName, thread
     const resStats = await apiPost(`${API_URL}/character`, { character: suggestedName }, { 'x-api-key': API_KEY });
     let aiCharStats = safeParseJSON(resStats.data);
 
+    if (!aiCharStats || !aiCharStats.valid) {
+        throw new Error("L'IA n'a pas pu valider son propre personnage.");
+    }
+
     state.characters.player2 = suggestedName;
     state.charInfo.player2 = aiCharStats;
+    
     await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
     await message.reply(formatMessage(`L'IA a choisi ${suggestedName} !\n\nLe combat commence ! À vous, ${senderName}.`));
     await initCombat(state, stateFile, message, threadID, {});
   } catch (error) {
     state.status = 'idle';
     await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-    await message.reply(formatMessage(`Erreur génération IA.`));
+    await message.reply(formatMessage(`Erreur génération IA: ${error.message}`));
   }
 }
 
 async function initCombat(state, stateFile, message, threadID, usersData) {
   state.stats = { 
-      player1: { pv: 100, endurance: 100 }, 
-      player2: { pv: 100, endurance: 100 } 
+      player1: initStats(state.charInfo.player1), 
+      player2: initStats(state.charInfo.player2) 
   };
   
   try {
@@ -663,6 +676,17 @@ async function initCombat(state, stateFile, message, threadID, usersData) {
     const preResult = safeParseJSON(preRes.data) || { decision: "normal_combat" };
     
     if (preResult.decision === "instant_one_shot") {
+      const winnerName = state.players[preResult.winner].name;
+      await message.reply(formatMessage(`${preResult.description}\n\nONE-SHOT INSTANTANÉ !\n${winnerName} anéantit l'adversaire !\nRaison : ${preResult.one_shot_reason}`));
+      
+      const winnerCard = await drawWinnerCard(winnerName, state.players[preResult.winner].uid, usersData); 
+      await message.reply({ attachment: winnerCard });
+      await saveCombat(state, winnerName, threadID);
+      
+      state = getInitialState();
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      await fs.unlink(stateFile).catch(() => {});
+      return;
     }
   } catch (err) {}
   
@@ -675,7 +699,7 @@ async function initCombat(state, stateFile, message, threadID, usersData) {
 }
 
 async function iaTurn(api, state, stateFile, threadID, message, usersData) {
-  state.processing = true;
+
   await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
   try {
     const res = await apiPost(`${API_URL}/combat`, { 
@@ -686,7 +710,7 @@ async function iaTurn(api, state, stateFile, threadID, message, usersData) {
       stats: state.stats, 
       history: state.history, 
       action: 'IA_TURN', 
-      isRiposte: state.status === 'riposte', 
+      isRiposte: false, 
       privilegedUID: state.players.player1.uid, 
       isAI: true, 
       currentTurn: 'player2', 
@@ -700,51 +724,19 @@ async function iaTurn(api, state, stateFile, threadID, message, usersData) {
         return;
     }
     
-    state.stats = result.stats || state.stats;
-    state.history.push({ action: `IA: ${result.taunt || 'Action IA'}`, result });
-    const pv1 = state.stats.player1?.pv ?? 100;
-    const pv2 = state.stats.player2?.pv ?? 100;
-    const display = `${result.description}\n\nPV restants :\n- ${state.players.player1.name}: ${pv1} PV\n- IA: ${pv2} PV\n\nEffets: ${result.impact?.effets_speciaux?.join(', ') || 'Aucun'}`;
-    await message.reply(formatMessage(display));
-
-    if (result.decision === 'one_shot' || result.decision === 'combat_termine' || pv1 <= 0 || pv2 <= 0) {
-      let winnerKey = 'player2';
-
-      if (pv1 > pv2) winnerKey = 'player1';
-      else if (pv2 > pv1) winnerKey = 'player2';
-      
-      const winnerName = state.players[winnerKey].name;
-      const winnerUID = state.players[winnerKey].uid;
-
-      await message.reply(formatMessage(`Combat terminé !\nVainqueur : ${winnerName}`));
-      const winnerCard = await drawWinnerCard(winnerName, winnerUID, usersData);
-      await message.reply({ attachment: winnerCard });
-      await saveCombat(state, winnerName, threadID);
-      
-      state = getInitialState();
-      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-      await fs.unlink(stateFile).catch(() => {});
-      return;
-    }
-    
-    state.status = result.decision === 'attente_riposte' ? 'riposte' : 'combat';
-    state.currentTurn = 'player1';
-    
-    if (state.status === 'riposte') {
-        await message.reply(formatMessage(`⚠️ ${state.players.player1.name}, RIPOSTE REQUISE !`));
-    } else {
-        await message.reply(formatMessage(`À vous maintenant !`));
-    }
+   
+    await processTurnResult(state, result, message, stateFile, usersData, threadID, 'player2');
 
   } catch (error) {
-    console.error("Erreur iaTurn:", error.message);
-  } finally {
-    if (state.status !== 'idle') {
-        state.processing = false;
-        state.lastTime = Date.now();
-        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-    }
+    state.processing = false;
+    await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+    await message.reply(formatMessage(`Erreur IA: ${error.message}`));
   }
+}
+
+function initStats(info = {}) {
+  const safeInfo = info || {};
+  return { pv: 100, endurance: 100, ...(safeInfo.resource_name && safeInfo.resource_name !== 'none' ? { [safeInfo.resource_name]: 100 } : {}) };
 }
 
 async function handleAction(event, api, state, stateFile, isRiposte, threadID, message, usersData) {
@@ -768,58 +760,92 @@ async function handleAction(event, api, state, stateFile, isRiposte, threadID, m
         aiDifficulty: state.aiDifficulty 
       }, { 'x-api-key': API_KEY });
   } catch (err) {
-
+      throw new Error("Impossible de joindre l'arbitre (API).");
   }
 
   const result = safeParseJSON(res.data);
-  if (!result || result.decision === 'ignore_message') return;
+  if (!result || result.decision === 'ignore_message') {
+      state.processing = false;
+      await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+      await message.reply(formatMessage("L'arbitre n'a pas compris. Réessayez."));
+      return;
+  }
 
-  state.stats = result.stats || state.stats;
-  state.history.push({ action: isRiposte ? `Riposte: ${action}` : action, result });
-  const p1Name = state.players.player1.name;
-  const p2Name = state.players.player2.name;
-  const pv1 = state.stats.player1?.pv ?? 100;
-  const pv2 = state.stats.player2?.pv ?? 100;
-  const display = `${result.description}\n\nPV restants :\n- ${p1Name}: ${pv1} PV\n- ${p2Name}: ${pv2} PV\n\nEffets: ${result.impact?.effets_speciaux?.join(', ') || 'Aucun'}`;
-  await message.reply(formatMessage(display));
+  await processTurnResult(state, result, message, stateFile, usersData, threadID, state.currentTurn);
+}
 
-  if (result.decision === 'one_shot' || result.decision === 'combat_termine' || pv1 <= 0 || pv2 <= 0) {
-    let winnerKey = 'player2';
-    if (pv1 > pv2) winnerKey = 'player1';
-    else if (pv2 > pv1) winnerKey = 'player2';
-
-    const winnerName = state.players[winnerKey].name;
-    const winnerUID = state.players[winnerKey].uid;
+async function processTurnResult(state, result, message, stateFile, usersData, threadID, activePlayerKey) {
+    state.stats = result.stats || state.stats;
+    const actorName = state.players[activePlayerKey].name;
     
-    await message.reply(formatMessage(`Combat terminé !\nVainqueur : ${winnerName}`));
-    const winnerCard = await drawWinnerCard(winnerName, winnerUID, usersData);
-    await message.reply({ attachment: winnerCard });
-    await saveCombat(state, winnerName, threadID);
+    state.history.push({ action: activePlayerKey === 'player2' && state.isAI ? "Action IA" : `Action ${actorName}`, result });
+    
+    const display = `${result.description}\n\n` +
+                    `❤️ J1: ${state.stats.player1.pv}PV | 💙 J2: ${state.stats.player2.pv}PV\n` +
+                    `Effets: ${result.impact?.effets_speciaux?.join(', ') || 'Aucun'}`;
+    
+    await message.reply(formatMessage(display));
 
-    if (state.tournament?.active && state.tournament?.currentMatchID) {
-        await processTournamentMatchEnd(state, winnerName, winnerUID, threadID, message, usersData, stateFile);
-        return; 
+    if (result.decision === 'one_shot' || result.decision === 'combat_termine' || state.stats.player1.pv <= 0 || state.stats.player2.pv <= 0) {
+        
+        let winnerKey = null;
+        if (result.winner && result.winner !== 'draw') {
+            const wName = result.winner.toLowerCase();
+            const p1Name = state.players.player1.name.toLowerCase();
+            const p1Char = state.characters.player1.toLowerCase();
+            
+            if (wName.includes(p1Name) || wName.includes(p1Char) || wName === 'player1') {
+                winnerKey = 'player1';
+            } else {
+                winnerKey = 'player2';
+            }
+        } else {
+        
+            if (state.stats.player1.pv > state.stats.player2.pv) winnerKey = 'player1';
+            else if (state.stats.player2.pv > state.stats.player1.pv) winnerKey = 'player2';
+            else winnerKey = 'draw';
+        }
+
+        if (winnerKey && winnerKey !== 'draw') {
+            const winnerName = state.players[winnerKey].name;
+            const winnerUID = state.players[winnerKey].uid;
+
+            await message.reply(formatMessage(`🏆 VICTOIRE : ${winnerName.toUpperCase()} !`));
+            const winImg = await drawWinnerCard(winnerName, winnerUID, usersData);
+            if(winImg) await message.reply({ attachment: winImg });
+        } else {
+            await message.reply(formatMessage(`💀 DOUBLE K.O !`));
+        }
+
+        await apiPost(`${API_URL}/save-combat`, { /* data */ }, { 'x-api-key': API_KEY });
+
+        if (state.tournament?.active && state.tournament?.currentMatchID) {
+            const wUID = winnerKey ? state.players[winnerKey].uid : null;
+            await processTournamentMatchEnd(state, state.players[winnerKey]?.name, wUID, threadID, message, usersData, stateFile);
+            return; 
+        }
+        
+        state = getInitialState();
+        await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
+        await fs.unlink(stateFile).catch(() => {});
+        return;
     }
-    
-    state = getInitialState();
+
+    const nextPlayerKey = activePlayerKey === 'player1' ? 'player2' : 'player1';
+    state.currentTurn = nextPlayerKey;
+    state.status = result.decision === 'attente_riposte' ? 'riposte' : 'combat';
+
+    if (!state.isAI || nextPlayerKey === 'player1') {
+        if (state.status === 'riposte') {
+            await message.reply(formatMessage(`⚠️ ${state.players[nextPlayerKey].name}, RIPOSTE REQUISE !`));
+        } else {
+            await message.reply(formatMessage(`👉 À vous, ${state.players[nextPlayerKey].name} !`));
+        }
+    }
+
+    state.lastTime = Date.now();
+    state.processing = false;
     await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-    await fs.unlink(stateFile).catch(() => {});
-    return;
-  }
-
-  state.status = result.decision === 'attente_riposte' ? 'riposte' : 'combat';
-  state.currentTurn = state.currentTurn === 'player1' ? 'player2' : 'player1';
-  
-  if (!state.isAI) {
-      if (state.status === 'riposte') {
-          await message.reply(formatMessage(`⚠️ ${state.players[state.currentTurn].name}, RIPOSTE REQUISE !`));
-      } else {
-          await message.reply(formatMessage(`${state.players[state.currentTurn].name}, à vous !`));
-      }
-  }
-
-  state.lastTime = Date.now();
-  await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
 }
 
 async function processTournamentMatchEnd(state, winnerName, winnerUID, threadID, message, usersData, stateFile) {
