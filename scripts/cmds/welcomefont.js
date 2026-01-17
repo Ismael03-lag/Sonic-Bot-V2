@@ -1,5 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
+const Canvas = require("canvas");
 
 module.exports = {
   config: {
@@ -27,30 +28,40 @@ module.exports = {
       }
 
       const attachment = event.messageReply.attachments[0];
-      if (!attachment.type || attachment.type !== "photo") {
+      if (!attachment.type || (attachment.type !== "photo" && attachment.type !== "animated_image")) {
         return message.reply("❌ Seules les images sont acceptées !");
       }
 
       try {
-     
-        let buffer;
-        if (global.utils.getStreamFromURL) {
-          try {
-            const stream = await global.utils.getStreamFromURL(attachment.url);
-            buffer = await streamToBuffer(stream);
-          } catch (streamError) {
-  
-            const response = await fetch(attachment.url);
-            const arrayBuffer = await response.arrayBuffer();
-            buffer = Buffer.from(arrayBuffer);
-          }
+        const imageURL = attachment.url;
+        const image = await Canvas.loadImage(imageURL);
+        
+        const canvas = Canvas.createCanvas(1200, 800);
+        const ctx = canvas.getContext('2d');
+        
+        const imgRatio = image.width / image.height;
+        const canvasRatio = 1200 / 800;
+        
+        let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
+        
+        if (imgRatio > canvasRatio) {
+          drawHeight = 800;
+          drawWidth = drawHeight * imgRatio;
+          offsetX = (1200 - drawWidth) / 2;
         } else {
-          const response = await fetch(attachment.url);
-          const arrayBuffer = await response.arrayBuffer();
-          buffer = Buffer.from(arrayBuffer);
+          drawWidth = 1200;
+          drawHeight = drawWidth / imgRatio;
+          offsetY = (800 - drawHeight) / 2;
         }
         
-        const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
+        ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.fillRect(0, 0, 1200, 800);
+        
+        const buffer = canvas.toBuffer();
+        
+        const fontDir = path.join(__dirname, "..", "..", "data", "welcome_fonts");
         await fs.ensureDir(fontDir);
         
         const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
@@ -61,15 +72,16 @@ module.exports = {
         await threadsData.set(threadID, threadData);
         
         message.reply("✅ Fond de bienvenue défini avec succès !");
+        
       } catch (error) {
-        console.error("Erreur complète:", error);
-        message.reply("❌ Erreur lors du téléchargement de l'image. Vérifiez que l'image est accessible.");
+        console.error("Erreur:", error);
+        message.reply(`❌ Erreur: ${error.message}`);
       }
     }
     else if (action === "reset") {
       try {
         const threadData = await threadsData.get(threadID);
-        const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
+        const fontDir = path.join(__dirname, "..", "..", "data", "welcome_fonts");
         const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
         
         if (fs.existsSync(fontPath)) {
@@ -88,7 +100,7 @@ module.exports = {
     else if (action === "view") {
       try {
         const threadData = await threadsData.get(threadID);
-        const fontDir = path.join(global.client.dirMain, "data", "welcome_fonts");
+        const fontDir = path.join(__dirname, "..", "..", "data", "welcome_fonts");
         const fontPath = path.join(fontDir, `welcome_font_${threadID}.png`);
         
         if (fs.existsSync(fontPath)) {
@@ -106,12 +118,3 @@ module.exports = {
     }
   }
 };
-
-function streamToBuffer(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", (chunk) => chunks.push(chunk));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-}
