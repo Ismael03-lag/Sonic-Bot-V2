@@ -147,10 +147,34 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
                 const { autoRefreshThreadInfoFirstTime } = config.database;
                 let { hideNotiMessage = {} } = config;
 
-                const { body, messageID, threadID, isGroup } = event;
+const { body, messageID, threadID, isGroup } = event;
 
-                // Check if has threadID
+if (body && body.includes('@') && isGroup && 
+    (!event.mentions || Object.keys(event.mentions).length === 0)) {
+        try {
+                const threadInfo = await api.getThreadInfo(threadID);
+                const allUsers = await api.getUserInfo(threadInfo.participantIDs);
+                event.mentions = {};
+                
+                const words = body.split(' ');
+                for (const word of words) {
+                        if (word.startsWith('@')) {
+                                const searchName = word.substring(1).toLowerCase();
+                                for (const [id, info] of Object.entries(allUsers)) {
+                                        if (info.name && info.name.toLowerCase().includes(searchName)) {
+                                                event.mentions[id] = info.name;
+                                                break;
+                                        }
+                                }
+                        }
+                }
+        } catch (error) {
+                console.error("FIX MENTIONS ERROR:", error.message);
+        }
+}
+
                 if (!threadID)
+                
                         return;
 
                 const senderID = event.userID || event.senderID || event.author;
