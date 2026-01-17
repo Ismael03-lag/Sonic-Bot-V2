@@ -149,33 +149,43 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
 
 const { body, messageID, threadID, isGroup } = event;
 
-if (body && body.includes('@') && isGroup && 
-    (!event.mentions || Object.keys(event.mentions).length === 0)) {
-        try {
-                const threadInfo = await api.getThreadInfo(threadID);
-                const allUsers = await api.getUserInfo(threadInfo.participantIDs);
-                event.mentions = {};
-                
-                const words = body.split(' ');
-                for (const word of words) {
-                        if (word.startsWith('@')) {
-                                const searchName = word.substring(1).toLowerCase();
-                                for (const [id, info] of Object.entries(allUsers)) {
-                                        if (info.name && info.name.toLowerCase().includes(searchName)) {
-                                                event.mentions[id] = info.name;
-                                                break;
-                                        }
-                                }
-                        }
-                }
-        } catch (error) {
-                console.error("FIX MENTIONS ERROR:", error.message);
+// fix of the mentions
+if (body && body.includes('@') && isGroup) {
+  if (!event.mentions || Object.keys(event.mentions).length === 0) {
+    try {
+      const threadInfo = await api.getThreadInfo(threadID);
+      const allUsers = await api.getUserInfo(threadInfo.participantIDs);
+      
+      const atIndex = body.indexOf('@');
+      if (atIndex !== -1) {
+        const afterAt = body.substring(atIndex + 1).trim();
+        let bestMatch = null;
+        let bestMatchLength = 0;
+        for (const [id, info] of Object.entries(allUsers)) {
+          if (info.name) {
+            const lowerName = info.name.toLowerCase();
+            if (afterAt.toLowerCase().includes(lowerName) || lowerName.startsWith(afterAt.toLowerCase())) {
+              if (info.name.length > bestMatchLength) {
+                bestMatch = { id, name: info.name };
+                bestMatchLength = info.name.length;
+              }
+            }
+          }
         }
+        if (bestMatch) {
+          event.mentions = event.mentions || {};
+          event.mentions[bestMatch.id] = bestMatch.name;
+        }
+      }
+    } catch (error) {
+    }
+  }
 }
-
-                if (!threadID)
-                
-                        return;
+event.mentions = event.mentions || {};
+// end of fix
+// Check if has threadID
+if (!threadID)
+        return;
 
                 const senderID = event.userID || event.senderID || event.author;
 
