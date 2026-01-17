@@ -19,7 +19,6 @@ module.exports = function (defaultFuncs, api, ctx) {
   function uploadAttachment(attachments, callback) {
     var uploads = [];
 
-    // create an array of promises
     for (var i = 0; i < attachments.length; i++) {
       if (!utils.isReadableStream(attachments[i])) {
         throw {
@@ -48,15 +47,11 @@ module.exports = function (defaultFuncs, api, ctx) {
             if (resData.error) {
               throw resData;
             }
-
-            // We have to return the data unformatted unless we want to change it
-            // back in sendMessage.
             return resData.payload.metadata[0];
           })
       );
     }
 
-    // resolve all promises
     bluebird
       .all(uploads)
       .then(function (resData) {
@@ -100,11 +95,6 @@ module.exports = function (defaultFuncs, api, ctx) {
   }
 
   function sendContent(form, threadID, isSingleUser, messageAndOTID, callback) {
-    // There are three cases here:
-    // 1. threadID is of type array, where we're starting a new group chat with users
-    //    specified in the array.
-    // 2. User is sending a message to a specific user.
-    // 3. No additional form params and the message goes to an existing group chat.
     if (utils.getType(threadID) === "Array") {
       for (var i = 0; i < threadID.length; i++) {
         form["specific_to_list[" + i + "]"] = "fbid:" + threadID[i];
@@ -113,12 +103,9 @@ module.exports = function (defaultFuncs, api, ctx) {
       form["client_thread_id"] = "root:" + messageAndOTID;
       log.info("sendMessage", "Sending message to multiple users: " + threadID);
     } else {
-      // This means that threadID is the id of a user, and the chat
-      // is a single person chat
       if (isSingleUser) {
         form["specific_to_list[0]"] = "fbid:" + threadID;
         form["specific_to_list[1]"] = "fbid:" + ctx.userID;
-        form["other_user_fbid"] = threadID;
       } else {
         form["thread_fbid"] = threadID;
       }
@@ -177,16 +164,16 @@ module.exports = function (defaultFuncs, api, ctx) {
   }
 
   function send(form, threadID, messageAndOTID, callback, isGroup) {
-    // We're doing a query to this to check if the given id is the id of
-    // a user or of a group chat. The form will be different depending
-    // on that.
     if (utils.getType(threadID) === "Array") {
       sendContent(form, threadID, false, messageAndOTID, callback);
     } else {
-      if (utils.getType(isGroup) != "Boolean")
-        sendContent(form, threadID, threadID.length <= 15, messageAndOTID, callback);
-      else
+      if (utils.getType(isGroup) != "Boolean") {
+        const threadIDStr = String(threadID);
+        const isSingleUser = /^\d{1,15}$/.test(threadIDStr);
+        sendContent(form, threadID, isSingleUser, messageAndOTID, callback);
+      } else {
         sendContent(form, threadID, !isGroup, messageAndOTID, callback);
+      }
     }
   }
 
@@ -270,8 +257,8 @@ module.exports = function (defaultFuncs, api, ctx) {
 
         files.forEach(function (file) {
           var key = Object.keys(file);
-          var type = key[0]; // image_id, file_id, etc
-          form["" + type + "s"].push(file[type]); // push the id
+          var type = key[0];
+          form["" + type + "s"].push(file[type]);
         });
         cb();
       });
@@ -357,7 +344,6 @@ module.exports = function (defaultFuncs, api, ctx) {
       });
     }
 
-    // Changing this to accomodate an array of users
     if (
       threadIDType !== "Array" &&
       threadIDType !== "Number" &&
