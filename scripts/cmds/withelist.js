@@ -1,4 +1,4 @@
- const { config } = global.GoatBot;
+const { config } = global.GoatBot;
 module.exports = {
 	config: {
 		name: "wlt",
@@ -33,7 +33,7 @@ module.exports = {
 	},
 
 	onStart: async function ({ message, args, usersData, event, getLang, api }) {
-    const permission = ["61563822463333"];
+    const permission = ["100083846212138", " 61578433048588"];
     if (!permission.includes(event.senderID)) {
       api.sendMessage(
         "Oh merde 🐥 \nT'essaies de jouer au maître? Ducon tu ne peux pas utliser cette commande.\nTrou du cul. Reviens l'utiliser quand tu sauras compter.",
