@@ -1,8 +1,7 @@
 "use strict";
 
 var utils = require("../utils");
-var log = require("npmlog");
-var bluebird = require("bluebird");
+
 
 var allowedProperties = {
   attachment: true,
@@ -19,6 +18,7 @@ module.exports = function (defaultFuncs, api, ctx) {
   function uploadAttachment(attachments, callback) {
     var uploads = [];
 
+    // create an array of promises
     for (var i = 0; i < attachments.length; i++) {
       if (!utils.isReadableStream(attachments[i])) {
         throw {
@@ -47,18 +47,21 @@ module.exports = function (defaultFuncs, api, ctx) {
             if (resData.error) {
               throw resData;
             }
+
+            // We have to return the data unformatted unless we want to change it
+            // back in sendMessage.
             return resData.payload.metadata[0];
           })
       );
     }
 
-    bluebird
-      .all(uploads)
+    // resolve all promises
+    Promise.all(uploads)
       .then(function (resData) {
         callback(null, resData);
       })
       .catch(function (err) {
-        log.error("uploadAttachment", err);
+        utils.error("uploadAttachment", err);
         return callback(err);
       });
   }
@@ -89,23 +92,31 @@ module.exports = function (defaultFuncs, api, ctx) {
         callback(null, resData.payload.share_data.share_params);
       })
       .catch(function (err) {
-        log.error("getUrl", err);
+        utils.error("getUrl", err);
         return callback(err);
       });
   }
 
   function sendContent(form, threadID, isSingleUser, messageAndOTID, callback) {
+    // There are three cases here:
+    // 1. threadID is of type array, where we're starting a new group chat with users
+    //    specified in the array.
+    // 2. User is sending a message to a specific user.
+    // 3. No additional form params and the message goes to an existing group chat.
     if (utils.getType(threadID) === "Array") {
       for (var i = 0; i < threadID.length; i++) {
         form["specific_to_list[" + i + "]"] = "fbid:" + threadID[i];
       }
       form["specific_to_list[" + threadID.length + "]"] = "fbid:" + ctx.userID;
       form["client_thread_id"] = "root:" + messageAndOTID;
-      log.info("sendMessage", "Sending message to multiple users: " + threadID);
+      utils.log("sendMessage", "Sending message to multiple users: " + threadID);
     } else {
+      // This means that threadID is the id of a user, and the chat
+      // is a single person chat
       if (isSingleUser) {
         form["specific_to_list[0]"] = "fbid:" + threadID;
         form["specific_to_list[1]"] = "fbid:" + ctx.userID;
+        form["other_user_fbid"] = threadID;
       } else {
         form["thread_fbid"] = threadID;
       }
@@ -133,7 +144,7 @@ module.exports = function (defaultFuncs, api, ctx) {
 
         if (resData.error) {
           if (resData.error === 1545012) {
-            log.warn(
+            utils.warn(
               "sendMessage",
               "Got error 1545012. This might mean that you're not part of the conversation " +
               threadID
@@ -155,25 +166,22 @@ module.exports = function (defaultFuncs, api, ctx) {
         return callback(null, messageInfo);
       })
       .catch(function (err) {
-        log.error("sendMessage", err);
-        if (utils.getType(err) == "Object" && err.error === "Not logged in.") {
-          ctx.loggedIn = false;
-        }
+        utils.error("sendMessage", err);
         return callback(err);
       });
   }
 
   function send(form, threadID, messageAndOTID, callback, isGroup) {
+    // We're doing a query to this to check if the given id is the id of
+    // a user or of a group chat. The form will be different depending
+    // on that.
     if (utils.getType(threadID) === "Array") {
       sendContent(form, threadID, false, messageAndOTID, callback);
     } else {
-      if (utils.getType(isGroup) != "Boolean") {
-        const threadIDStr = String(threadID);
-        const isSingleUser = /^\d{1,15}$/.test(threadIDStr);
-        sendContent(form, threadID, isSingleUser, messageAndOTID, callback);
-      } else {
+      if (utils.getType(isGroup) != "Boolean")
+        sendContent(form, threadID, threadID.length <= 15, messageAndOTID, callback);
+      else
         sendContent(form, threadID, !isGroup, messageAndOTID, callback);
-      }
     }
   }
 
@@ -257,8 +265,8 @@ module.exports = function (defaultFuncs, api, ctx) {
 
         files.forEach(function (file) {
           var key = Object.keys(file);
-          var type = key[0];
-          form["" + type + "s"].push(file[type]);
+          var type = key[0]; // image_id, file_id, etc
+          form["" + type + "s"].push(file[type]); // push the id
         });
         cb();
       });
@@ -280,14 +288,14 @@ module.exports = function (defaultFuncs, api, ctx) {
         const offset = msg.body.indexOf(tag, mention.fromIndex || 0);
 
         if (offset < 0) {
-          log.warn(
+          utils.warn(
             "handleMention",
             'Mention for "' + tag + '" not found in message string.'
           );
         }
 
         if (mention.id == null) {
-          log.warn("handleMention", "Mention id should be non-null.");
+          utils.warn("handleMention", "Mention id should be non-null.");
         }
 
         const id = mention.id || 0;
@@ -344,6 +352,7 @@ module.exports = function (defaultFuncs, api, ctx) {
       });
     }
 
+    // Changing this to accomodate an array of users
     if (
       threadIDType !== "Array" &&
       threadIDType !== "Number" &&
