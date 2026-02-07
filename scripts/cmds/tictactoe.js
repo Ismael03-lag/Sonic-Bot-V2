@@ -189,8 +189,8 @@ async function generateBoardImage(board, currentPlayer, players, usersData, game
     ctx.shadowBlur = 25;
     ctx.fillStyle = 'rgba(20, 20, 40, 0.7)';
     ctx.beginPath();
-    ctx.roundRect(boardX - 20, boardY - 20, boardSize + 40, boardSize + 40, 25);
-    ctx.fill();
+      ctx.roundRect(boardX - 20, boardY - 20, boardSize + 40, boardSize + 40, 25);
+      ctx.fill();
     ctx.shadowBlur = 0;
 
     ctx.strokeStyle = '#4cc9f0';
@@ -353,8 +353,8 @@ async function generateEndGameImage(board, winner, players, usersData, isDraw = 
     ctx.shadowBlur = 30;
     ctx.fillStyle = 'rgba(20, 20, 40, 0.8)';
     ctx.beginPath();
-    ctx.roundRect(boardX - 20, boardY - 20, boardSize + 40, boardSize + 40, 20);
-    ctx.fill();
+      ctx.roundRect(boardX - 20, boardY - 20, boardSize + 40, boardSize + 40, 20);
+      ctx.fill();
     ctx.shadowBlur = 0;
 
     ctx.strokeStyle = isDraw ? '#4cc9f0' : '#FFD700';
@@ -929,208 +929,6 @@ async function sendImage(api, threadID, imageBuffer, text = "") {
   }
 }
 
-async function generateVideoReview(gameID, api, usersData) {
-  try {
-    const game = games[gameID];
-    if (!game || !game.moves || game.moves.length === 0) return;
-
-    const tempDir = path.join(VIDEO_DIR, `review_${Date.now()}`);
-    await fs.ensureDir(tempDir);
-
-    const frames = [];
-    
-    async function addFrame(canvasBuffer, frameName) {
-      const framePath = path.join(tempDir, `${frameName}.png`);
-      await fs.writeFile(framePath, canvasBuffer);
-      frames.push(framePath);
-    }
-
-    async function generatePlayerIntroFrame(player, frameNum) {
-      const canvas = createCanvas(1920, 1080);
-      const ctx = canvas.getContext('2d');
-
-      const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
-      gradient.addColorStop(0, '#0a0a0a');
-      gradient.addColorStop(0.5, '#1a1a2e');
-      gradient.addColorStop(1, '#0f3460');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 1920, 1080);
-
-      const playerInfo = await getPlayerInfo(player.id, usersData);
-
-      if (playerInfo.avatar) {
-        ctx.save();
-        ctx.shadowColor = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
-        ctx.shadowBlur = 40;
-        ctx.beginPath();
-        ctx.arc(960, 400, 200, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(playerInfo.avatar, 760, 200, 400, 400);
-        ctx.restore();
-      }
-
-      ctx.font = 'bold 80px "Segoe UI", Arial, sans-serif';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#FFFFFF';
-      ctx.shadowBlur = 20;
-      ctx.fillText(playerInfo.name, 960, 650);
-      ctx.shadowBlur = 0;
-
-      ctx.font = 'bold 150px "Segoe UI", Arial, sans-serif';
-      ctx.shadowColor = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
-      ctx.shadowBlur = 40;
-      ctx.fillStyle = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
-      ctx.fillText(player.symbol, 960, 850);
-      ctx.shadowBlur = 0;
-
-      return canvas.toBuffer();
-    }
-
-    async function generateBoardFrame(board, players, moveIndex = null) {
-      const canvas = createCanvas(1920, 1080);
-      const ctx = canvas.getContext('2d');
-
-      const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
-      gradient.addColorStop(0, '#0a0a0a');
-      gradient.addColorStop(0.5, '#1a1a2e');
-      gradient.addColorStop(1, '#0f3460');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 1920, 1080);
-
-      const boardSize = 700;
-      const boardX = 960 - boardSize/2;
-      const boardY = 300;
-
-      ctx.shadowColor = 'rgba(76, 201, 240, 0.5)';
-      ctx.shadowBlur = 40;
-      ctx.fillStyle = 'rgba(20, 20, 40, 0.8)';
-      ctx.beginPath();
-      ctx.roundRect(boardX - 30, boardY - 30, boardSize + 60, boardSize + 60, 35);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      ctx.strokeStyle = '#4cc9f0';
-      ctx.lineWidth = 8;
-      ctx.beginPath();
-      for (let i = 1; i <= 2; i++) {
-        ctx.moveTo(boardX + (boardSize/3)*i, boardY);
-        ctx.lineTo(boardX + (boardSize/3)*i, boardY + boardSize);
-        ctx.moveTo(boardX, boardY + (boardSize/3)*i);
-        ctx.lineTo(boardX + boardSize, boardY + (boardSize/3)*i);
-      }
-      ctx.stroke();
-
-      ctx.font = 'bold 140px "Segoe UI", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      for (let i = 0; i < 9; i++) {
-        const row = Math.floor(i / 3);
-        const col = i % 3;
-        const x = boardX + (col * (boardSize/3)) + (boardSize/6);
-        const y = boardY + (row * (boardSize/3)) + (boardSize/6);
-
-        if (board[i] === '❌') {
-          ctx.shadowColor = '#ff6b6b';
-          ctx.shadowBlur = 30;
-          ctx.fillStyle = '#ff6b6b';
-          ctx.fillText('❌', x, y);
-          ctx.shadowBlur = 0;
-        } else if (board[i] === '⭕') {
-          ctx.shadowColor = '#4ecdc4';
-          ctx.shadowBlur = 30;
-          ctx.fillStyle = '#4ecdc4';
-          ctx.fillText('⭕', x, y);
-          ctx.shadowBlur = 0;
-        }
-      }
-
-      if (moveIndex !== null) {
-        ctx.font = 'bold 50px "Segoe UI", Arial, sans-serif';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(`Coup #${moveIndex + 1}`, 960, 150);
-      }
-
-      return canvas.toBuffer();
-    }
-
-    const titleCanvas = createCanvas(1920, 1080);
-    const titleCtx = titleCanvas.getContext('2d');
-    
-    const titleGradient = titleCtx.createLinearGradient(0, 0, 1920, 1080);
-    titleGradient.addColorStop(0, '#0a0a0a');
-    titleGradient.addColorStop(0.5, '#1a1a2e');
-    titleGradient.addColorStop(1, '#0f3460');
-    titleCtx.fillStyle = titleGradient;
-    titleCtx.fillRect(0, 0, 1920, 1080);
-
-    titleCtx.font = 'bold 100px "Segoe UI", Arial, sans-serif';
-    titleCtx.fillStyle = '#4cc9f0';
-    titleCtx.textAlign = 'center';
-    titleCtx.shadowColor = '#4cc9f0';
-    titleCtx.shadowBlur = 40;
-    titleCtx.fillText('🎬 REVUE DE LA PARTIE', 960, 400);
-    titleCtx.shadowBlur = 0;
-    
-    titleCtx.font = 'bold 60px "Segoe UI", Arial, sans-serif';
-    titleCtx.fillStyle = '#FFFFFF';
-    titleCtx.fillText(`${game.players[0].name} vs ${game.players[1].name}`, 960, 550);
-    
-    titleCtx.font = 'italic 40px "Segoe UI", Arial, sans-serif';
-    titleCtx.fillStyle = '#888888';
-    titleCtx.fillText('TicTacToe Ultimate - Hedgehog GPT', 960, 700);
-
-    await addFrame(titleCanvas.toBuffer(), 'title');
-
-    for (let i = 0; i < game.players.length; i++) {
-      const playerFrame = await generatePlayerIntroFrame(game.players[i], i);
-      await addFrame(playerFrame, `player${i + 1}`);
-    }
-
-    for (let i = 0; i < game.moves.length; i++) {
-      const boardFrame = await generateBoardFrame(game.moves[i].board, game.players, i);
-      await addFrame(boardFrame, `move${i + 1}`);
-    }
-
-    const finalBoardFrame = await generateBoardFrame(game.board, game.players);
-    await addFrame(finalBoardFrame, 'final');
-
-    const videoPath = path.join(tempDir, 'review.mp4');
-    
-    return new Promise((resolve, reject) => {
-      const command = ffmpeg()
-        .addInput(path.join(tempDir, '*.png'))
-        .inputOptions(['-pattern_type glob', '-framerate 1'])
-        .outputOptions([
-          '-c:v libx264',
-          '-pix_fmt yuv420p',
-          '-r 30',
-          '-vf "scale=1920:1080,format=yuv420p"'
-        ])
-        .on('end', async () => {
-          try {
-            await api.sendMessage({
-              body: `🎬 **Revue de la partie**\n━━━━━━━━━━━━━━━\n👤 **${game.players[0].name}** ❌ vs **${game.players[1].name}** ⭕\n📊 **${game.moves.length}** coups joués\n\n_La vidéo sera supprimée automatiquement..._`,
-              attachment: fs.createReadStream(videoPath)
-            }, game.threadID);
-            
-            await fs.remove(tempDir);
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        })
-        .on('error', reject)
-        .save(videoPath);
-    });
-    
-  } catch (error) {
-    console.error('Erreur génération vidéo:', error);
-  }
-}
-
 function getAvailableMoves(board) {
   return board.map((v,i) => v === null ? i : -1).filter(i => i !== -1);
 }
@@ -1411,9 +1209,12 @@ async function handleGameEnd(gameID, api, event, usersData) {
   }
 
   if (game.moves && game.moves.length > 0 && !game.isTournamentGame && !game.isMathChallenge) {
-    setTimeout(() => {
-      generateVideoReview(gameID, api, usersData).catch(console.error);
-    }, 3000);
+    const videoMode = false; // Vidéo désactivée
+    if (videoMode) {
+      setTimeout(() => {
+        generateVideoReview(gameID, api, usersData).catch(console.error);
+      }, 3000);
+    }
   }
   
   game.restartPrompted = true;
@@ -1474,7 +1275,7 @@ function generateTournamentBracketText(tournament) {
   if (tournament.status === 'completed' && tournament.winner) {
     const winner = tournament.players.find(p => p.id === tournament.winner);
     text += '\n◆━━━━━▣✦▣━━━━━━◆\n';
-    text += `🏆 CHAMPION: ${winner?.name || 'Inconnu'}\n';
+    text += `🏆 CHAMPION: ${winner?.name || 'Inconnu'}\n`;
     text += '◆━━━━━▣✦▣━━━━━━◆';
   } else {
     text += '\n◆━━━━━▣✦▣━━━━━━◆';
@@ -1703,6 +1504,642 @@ async function advanceTournamentRound(tournamentID, api, usersData) {
   }
 
   await initiateNextMatch(tournamentID, api, usersData);
+}
+
+async function generateVideoReview(gameID, api, usersData) {
+  try {
+    const game = games[gameID];
+    if (!game || !game.moves || game.moves.length === 0) return;
+
+    const tempDir = path.join(VIDEO_DIR, `review_${Date.now()}`);
+    await fs.ensureDir(tempDir);
+
+    const frames = [];
+    
+    async function addFrame(canvasBuffer, frameName) {
+      const framePath = path.join(tempDir, `${frameName}.png`);
+      await fs.writeFile(framePath, canvasBuffer);
+      frames.push(framePath);
+    }
+
+    async function generatePlayerIntroFrame(player, frameNum) {
+      const canvas = createCanvas(1920, 1080);
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
+      gradient.addColorStop(0, '#0a0a0a');
+      gradient.addColorStop(0.5, '#1a1a2e');
+      gradient.addColorStop(1, '#0f3460');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      const playerInfo = await getPlayerInfo(player.id, usersData);
+
+      if (playerInfo.avatar) {
+        ctx.save();
+        ctx.shadowColor = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
+        ctx.shadowBlur = 40;
+        ctx.beginPath();
+        ctx.arc(960, 400, 200, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(playerInfo.avatar, 760, 200, 400, 400);
+        ctx.restore();
+      }
+
+      ctx.font = 'bold 80px "Segoe UI", Arial, sans-serif';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#FFFFFF';
+      ctx.shadowBlur = 20;
+      ctx.fillText(playerInfo.name, 960, 650);
+      ctx.shadowBlur = 0;
+
+      ctx.font = 'bold 150px "Segoe UI", Arial, sans-serif';
+      ctx.shadowColor = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
+      ctx.shadowBlur = 40;
+      ctx.fillStyle = player.symbol === '❌' ? '#ff6b6b' : '#4ecdc4';
+      ctx.fillText(player.symbol, 960, 850);
+      ctx.shadowBlur = 0;
+
+      return canvas.toBuffer();
+    }
+
+    async function generateBoardFrame(board, players, moveIndex = null) {
+      const canvas = createCanvas(1920, 1080);
+      const ctx = canvas.getContext('2d');
+
+      const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
+      gradient.addColorStop(0, '#0a0a0a');
+      gradient.addColorStop(0.5, '#1a1a2e');
+      gradient.addColorStop(1, '#0f3460');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      const boardSize = 700;
+      const boardX = 960 - boardSize/2;
+      const boardY = 300;
+
+      ctx.shadowColor = 'rgba(76, 201, 240, 0.5)';
+      ctx.shadowBlur = 40;
+      ctx.fillStyle = 'rgba(20, 20, 40, 0.8)';
+      ctx.beginPath();
+      ctx.roundRect(boardX - 30, boardY - 30, boardSize + 60, boardSize + 60, 35);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.strokeStyle = '#4cc9f0';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      for (let i = 1; i <= 2; i++) {
+        ctx.moveTo(boardX + (boardSize/3)*i, boardY);
+        ctx.lineTo(boardX + (boardSize/3)*i, boardY + boardSize);
+        ctx.moveTo(boardX, boardY + (boardSize/3)*i);
+        ctx.lineTo(boardX + boardSize, boardY + (boardSize/3)*i);
+      }
+      ctx.stroke();
+
+      ctx.font = 'bold 140px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 0; i < 9; i++) {
+        const row = Math.floor(i / 3);
+        const col = i % 3;
+        const x = boardX + (col * (boardSize/3)) + (boardSize/6);
+        const y = boardY + (row * (boardSize/3)) + (boardSize/6);
+
+        if (board[i] === '❌') {
+          ctx.shadowColor = '#ff6b6b';
+          ctx.shadowBlur = 30;
+          ctx.fillStyle = '#ff6b6b';
+          ctx.fillText('❌', x, y);
+          ctx.shadowBlur = 0;
+        } else if (board[i] === '⭕') {
+          ctx.shadowColor = '#4ecdc4';
+          ctx.shadowBlur = 30;
+          ctx.fillStyle = '#4ecdc4';
+          ctx.fillText('⭕', x, y);
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      if (moveIndex !== null) {
+        ctx.font = 'bold 50px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(`Coup #${moveIndex + 1}`, 960, 150);
+      }
+
+      return canvas.toBuffer();
+    }
+
+    const titleCanvas = createCanvas(1920, 1080);
+    const titleCtx = titleCanvas.getContext('2d');
+    
+    const titleGradient = titleCtx.createLinearGradient(0, 0, 1920, 1080);
+    titleGradient.addColorStop(0, '#0a0a0a');
+    titleGradient.addColorStop(0.5, '#1a1a2e');
+    titleGradient.addColorStop(1, '#0f3460');
+    titleCtx.fillStyle = titleGradient;
+    titleCtx.fillRect(0, 0, 1920, 1080);
+
+    titleCtx.font = 'bold 100px "Segoe UI", Arial, sans-serif';
+    titleCtx.fillStyle = '#4cc9f0';
+    titleCtx.textAlign = 'center';
+    titleCtx.shadowColor = '#4cc9f0';
+    titleCtx.shadowBlur = 40;
+    titleCtx.fillText('🎬 REVUE DE LA PARTIE', 960, 400);
+    titleCtx.shadowBlur = 0;
+    
+    titleCtx.font = 'bold 60px "Segoe UI", Arial, sans-serif';
+    titleCtx.fillStyle = '#FFFFFF';
+    titleCtx.fillText(`${game.players[0].name} vs ${game.players[1].name}`, 960, 550);
+    
+    titleCtx.font = 'italic 40px "Segoe UI", Arial, sans-serif';
+    titleCtx.fillStyle = '#888888';
+    titleCtx.fillText('TicTacToe Ultimate - Hedgehog GPT', 960, 700);
+
+    await addFrame(titleCanvas.toBuffer(), 'title');
+
+    for (let i = 0; i < game.players.length; i++) {
+      const playerFrame = await generatePlayerIntroFrame(game.players[i], i);
+      await addFrame(playerFrame, `player${i + 1}`);
+    }
+
+    for (let i = 0; i < game.moves.length; i++) {
+      const boardFrame = await generateBoardFrame(game.moves[i].board, game.players, i);
+      await addFrame(boardFrame, `move${i + 1}`);
+    }
+
+    const finalBoardFrame = await generateBoardFrame(game.board, game.players);
+    await addFrame(finalBoardFrame, 'final');
+
+    const videoPath = path.join(tempDir, 'review.mp4');
+    
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg()
+        .addInput(path.join(tempDir, '*.png'))
+        .inputOptions(['-pattern_type glob', '-framerate 1'])
+        .outputOptions([
+          '-c:v libx264',
+          '-pix_fmt yuv420p',
+          '-r 30',
+          '-vf "scale=1920:1080,format=yuv420p"'
+        ])
+        .on('end', async () => {
+          try {
+            await api.sendMessage({
+              body: `🎬 **Revue de la partie**\n━━━━━━━━━━━━━━━\n👤 **${game.players[0].name}** ❌ vs **${game.players[1].name}** ⭕\n📊 **${game.moves.length}** coups joués\n\n_La vidéo sera supprimée automatiquement..._`,
+              attachment: fs.createReadStream(videoPath)
+            }, game.threadID);
+            
+            await fs.remove(tempDir);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        })
+        .on('error', reject)
+        .save(videoPath);
+    });
+    
+  } catch (error) {
+    console.error('Erreur génération vidéo:', error);
+  }
+}
+
+async function sendHelpText(api, threadID) {
+  const helpText =
+    `◆━━━━━▣✦▣━━━━━━◆\n` +
+    `🤖 TICTACTOE ULTIMATE - AIDE\n` +
+    `◆━━━━━▣✦▣━━━━━━◆\n\n` +
+    `🎮 JOUER:\n` +
+    `➲ \`ttt @joueur\` - 1v1 contre un ami\n` +
+    `➲ \`ttt ia [facile|normal|dur]\` - Contre l'IA\n` +
+    `➲ \`ttt\` - Afficher cette aide\n\n` +
+    `📊 STATISTIQUES:\n` +
+    `➲ \`ttt stats\` - Voir vos stats\n\n` +
+    `🏆 TOURNOI (4, 8 ou 16 joueurs):\n` +
+    `➲ \`ttt tournoi\` - Créer/afficher\n` +
+    `➲ \`ttt join\` - Rejoindre\n` +
+    `➲ \`ttt out\` - Quitter\n` +
+    `➲ \`ttt tournoi start\` - Démarrer\n\n` +
+    `🎨 AFFICHAGE:\n` +
+    `➲ \`ttt image on/off\` - Mode image\n\n` +
+    `🎯 EN JEU:\n` +
+    `➲ Choisir case (1-9)\n` +
+    `➲ \`forfait\` - Abandonner\n` +
+    `➲ \`restart\` - Rejouer (1v1 uniquement)\n` +
+    `◆━━━━━▣✦▣━━━━━━◆`;
+
+  await api.sendMessage(helpText, threadID);
+}
+
+async function sendStatsText(api, threadID, userName, stats) {
+  const winRate = stats.played > 0 ? Math.round((stats.wins / stats.played) * 100) : 0;
+  const statsText =
+    `◆━━━━━▣✦▣━━━━━━◆\n` +
+    `📊 STATISTIQUES de ${userName}\n` +
+    `◆━━━━━▣✦▣━━━━━━◆\n\n` +
+    `🏆 Victoires: ${stats.wins}\n` +
+    `💀 Défaites: ${stats.losses}\n` +
+    `🤝 Nuls: ${stats.draws}\n` +
+    `🎮 Parties: ${stats.played}\n` +
+    `📈 Ratio: ${winRate}%\n` +
+    `◆━━━━━▣✦▣━━━━━━◆`;
+
+  await api.sendMessage(statsText, threadID);
+}
+
+async function handleTournamentCommand(command, arg1, api, event, args, usersData) {
+  const threadID = event.threadID;
+  const senderID = event.senderID;
+
+  if (!tournaments[threadID]) createTournament(threadID);
+  const tournament = tournaments[threadID];
+
+  if (command === 'join') {
+    if (tournament.status !== 'registration') {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Aucun tournoi en inscription actuellement.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    if (tournament.players.find(p => p.id === senderID)) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `⚠️ Vous êtes déjà inscrit.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    if (tournament.players.length >= tournament.requiredPlayers) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Tournoi complet (${tournament.requiredPlayers} joueurs max).\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    const playerName = await usersData.getName(senderID) || `Joueur ${senderID}`;
+    tournament.players.push({
+      id: senderID,
+      name: playerName
+    });
+
+    if (tournament.imageMode) {
+      const bracketImage = await generateTournamentBracketImage(tournament, usersData);
+      await sendImage(api, threadID, bracketImage,
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `✅ Inscription confirmée (${tournament.players.length}/${tournament.requiredPlayers})\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`
+      );
+    } else {
+      const bracketText = generateTournamentBracketText(tournament);
+      await api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `✅ Inscription confirmée (${tournament.players.length}/${tournament.requiredPlayers})\n\n` +
+        `${bracketText}`,
+        threadID
+      );
+    }
+    return;
+  }
+
+  if (command === 'out') {
+    if (tournament.status !== 'registration') {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Impossible de quitter, tournoi déjà démarré.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    const idx = tournament.players.findIndex(p => p.id === senderID);
+    if (idx === -1) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `⚠️ Vous n'êtes pas inscrit.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    tournament.players.splice(idx, 1);
+
+    if (tournament.imageMode) {
+      const bracketImage = await generateTournamentBracketImage(tournament, usersData);
+      await sendImage(api, threadID, bracketImage,
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🚪 Vous avez quitté le tournoi.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`
+      );
+    } else {
+      const bracketText = generateTournamentBracketText(tournament);
+      await api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🚪 Vous avez quitté le tournoi.\n\n` +
+        `${bracketText}`,
+        threadID
+      );
+    }
+    return;
+  }
+
+  const subCommand = arg1;
+  if (subCommand === 'cancel') {
+    if (tournament.status !== 'registration') {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Impossible d'annuler, tournoi déjà démarré.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    delete tournaments[threadID];
+    await api.sendMessage(
+      `◆━━━━━▣✦▣━━━━━━◆\n` +
+      `🗑️ Inscription au tournoi annulée.\n` +
+      `◆━━━━━▣✦▣━━━━━━◆`,
+      threadID
+    );
+    return;
+  }
+
+  if (subCommand === 'start') {
+    const num = tournament.players.length;
+    if (![4, 8, 16].includes(num)) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Il faut 4, 8 ou 16 joueurs pour démarrer. Actuels: ${num}\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    tournament.requiredPlayers = num;
+    await startTournament(threadID, api, usersData);
+    return;
+  }
+
+  if (tournament.imageMode) {
+    const bracketImage = await generateTournamentBracketImage(tournament, usersData);
+    await sendImage(api, threadID, bracketImage,
+      `◆━━━━━▣✦▣━━━━━━◆\n` +
+      `🏆 TOURNOI MORPION\n` +
+      `Tapez \`ttt join\` pour participer !\n` +
+      `◆━━━━━▣✦▣━━━━━━◆`
+    );
+  } else {
+    const bracketText = generateTournamentBracketText(tournament);
+    await api.sendMessage(
+      `◆━━━━━▣✦▣━━━━━━◆\n` +
+      `🏆 TOURNOI MORPION\n\n` +
+      `${bracketText}\n\n` +
+      `Tapez \`ttt join\` pour participer !\n` +
+      `◆━━━━━▣✦▣━━━━━━◆`,
+      threadID
+    );
+  }
+}
+
+async function handleCommand(command, arg1, api, event, args, usersData) {
+  const threadID = event.threadID;
+  const senderID = event.senderID;
+  const { mentions } = event;
+
+  if (command === 'image') {
+    if (arg1 === 'on') {
+      imageModeByThread[threadID] = true;
+      if (tournaments[threadID]) {
+        tournaments[threadID].imageMode = true;
+      }
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🎨 MODE IMAGE ACTIVÉ\n\n` +
+        `Tous les rendus seront désormais visuels.\n` +
+        `Pour revenir au mode textuel:\n` +
+        `\ttt image off\`\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`, 
+        threadID 
+      );
+    } else if (arg1 === 'off') {
+      imageModeByThread[threadID] = false;
+      if (tournaments[threadID]) {
+        tournaments[threadID].imageMode = false;
+      }
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🔧 Mode image désactivé.\n` +
+        `Retour au rendu textuel.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+    return;
+  }
+
+  if (command === 'help') {
+    if (imageModeByThread[threadID]) {
+      const helpImage = await generateHelpImage();
+      if (helpImage) {
+        await sendImage(api, threadID, helpImage);
+      } else {
+        await sendHelpText(api, threadID);
+      }
+    } else {
+      await sendHelpText(api, threadID);
+    }
+    return;
+  }
+
+  if (command === 'stats') {
+    const stats = playerStats[senderID] || { wins: 0, losses: 0, draws: 0, played: 0 };
+    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
+
+    if (imageModeByThread[threadID]) {
+      const statsImage = await generateStatsImage(playerStats, senderID, usersData);
+      if (statsImage) {
+        await sendImage(api, threadID, statsImage);
+      } else {
+        await sendStatsText(api, threadID, userName, stats);
+      }
+    } else {
+      await sendStatsText(api, threadID, userName, stats);
+    }
+    return;
+  }
+
+  if (command === 'join' || command === 'out' || command === 'tournoi') {
+    return handleTournamentCommand(command, arg1, api, event, args, usersData);
+  }
+
+  if (command === 'ia' || command === 'ai') {
+    const diff = ['easy', 'normal', 'hard', 'facile', 'normal', 'dur'].includes(arg1) ? 
+      (arg1 === 'facile' ? 'easy' : arg1 === 'dur' ? 'hard' : arg1) : 'normal';
+    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
+
+    const bot = { 
+      id: 'AI', 
+      name: BOT_NAME
+    };
+
+    const human = { 
+      id: senderID, 
+      name: userName
+    };
+
+    const gameID = `${threadID}:ai:${senderID}`;
+    const imageMode = imageModeByThread[threadID] || false;
+
+    resetGame(gameID, human, bot, { 
+      isAI: true, 
+      aiDifficulty: diff, 
+      threadID,
+      imageMode 
+    });
+
+    if (imageMode) {
+      const boardImage = await generateBoardImage(
+        games[gameID].board,
+        games[gameID].players[0],
+        games[gameID].players,
+        usersData
+      );
+      await sendImage(api, threadID, boardImage,
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🎮 Partie contre IA (${diff})\n` +
+        `${human.name} ❌ vs ${bot.name} ⭕\n\n` +
+        `${human.name}, joue (1-9).\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`
+      );
+    } else {
+      await api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🎮 Partie contre IA (${diff})\n` +
+        `${human.name} ❌ vs ${bot.name} ⭕\n\n` +
+        `${displayBoard(games[gameID].board)}\n\n` +
+        `${human.name}, joue le premier coup (1-9).\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    if (games[gameID].players[games[gameID].currentPlayerIndex].id === 'AI') {
+      await applyAIMove(gameID, api, usersData);
+    }
+    return;
+  }
+
+  const knownCommands = ['help', 'stats', 'image', 'join', 'out', 'tournoi', 'ia', 'ai'];
+  if (!knownCommands.includes(command)) {
+    let targetID = null;
+    let targetName = null;
+
+    if (Object.keys(mentions).length > 0) {
+      const firstMention = Object.keys(mentions)[0];
+      targetID = firstMention;
+      targetName = mentions[firstMention].replace('@', '');
+    } else if (args[0]) {
+      const extracted = args[0].match(/\d+/);
+      if (extracted) {
+        targetID = extracted[0];
+        targetName = `Joueur ${targetID}`;
+      }
+    }
+
+    if (!targetID) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Mention invalide. Usage: \`ttt @joueur\`\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    if (targetID === senderID) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `❌ Vous ne pouvez pas jouer contre vous-même.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    const targetInGame = Object.values(games).some(g => 
+      g.threadID === threadID && 
+      g.players.some(p => p.id === targetID) && 
+      g.inProgress
+    );
+
+    if (targetInGame) {
+      return api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `⚠️ Le joueur ciblé est déjà en partie.\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+
+    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
+    const opponentName = await usersData.getName(targetID) || targetName;
+
+    const player1 = { 
+      id: senderID, 
+      name: userName
+    };
+
+    const player2 = { 
+      id: targetID, 
+      name: opponentName
+    };
+
+    const gameID = `${threadID}:pvp:${senderID}:${targetID}`;
+    const imageMode = imageModeByThread[threadID] || false;
+
+    resetGame(gameID, player1, player2, { threadID, imageMode });
+
+    if (imageMode) {
+      const boardImage = await generateBoardImage(
+        games[gameID].board,
+        games[gameID].players[0],
+        games[gameID].players,
+        usersData,
+      );
+      await sendImage(api, threadID, boardImage,
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🎮 Nouvelle partie !\n` +
+        `${player1.name} ❌ vs ${player2.name} ⭕\n\n` +
+        `${player1.name}, joue (1-9).\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`
+      );
+    } else {
+      await api.sendMessage(
+        `◆━━━━━▣✦▣━━━━━━◆\n` +
+        `🎮 Nouvelle partie !\n` +
+        `${player1.name} ❌ vs ${player2.name} ⭕\n\n` +
+        `${displayBoard(games[gameID].board)}\n\n` +
+        `${player1.name}, joue le premier coup (1-9).\n` +
+        `◆━━━━━▣✦▣━━━━━━◆`,
+        threadID
+      );
+    }
+    return;
+  }
+
+  return api.sendMessage(
+    `◆━━━━━▣✦▣━━━━━━◆\n` +
+    `❌ Commande introuvable. Tapez \`ttt help\`.\n` +
+    `◆━━━━━▣✦▣━━━━━━◆`,
+    threadID
+  );
 }
 
 module.exports = {
@@ -1987,437 +2424,3 @@ module.exports = {
     }
   }
 };
-
-async function handleCommand(command, arg1, api, event, args, usersData) {
-  const threadID = event.threadID;
-  const senderID = event.senderID;
-  const { mentions } = event;
-
-  if (command === 'image') {
-    if (arg1 === 'on') {
-      imageModeByThread[threadID] = true;
-      if (tournaments[threadID]) {
-        tournaments[threadID].imageMode = true;
-      }
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🎨 MODE IMAGE ACTIVÉ\n\n` +
-        `Tous les rendus seront désormais visuels.\n` +
-        `Pour revenir au mode textuel:\n` +
-        `\ttt image off\`\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`, 
-        threadID 
-      );
-    } else if (arg1 === 'off') {
-      imageModeByThread[threadID] = false;
-      if (tournaments[threadID]) {
-        tournaments[threadID].imageMode = false;
-      }
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🔧 Mode image désactivé.\n` +
-        `Retour au rendu textuel.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-    return;
-  }
-
-  if (command === 'help') {
-    if (imageModeByThread[threadID]) {
-      const helpImage = await generateHelpImage();
-      if (helpImage) {
-        await sendImage(api, threadID, helpImage);
-      } else {
-        await sendHelpText(api, threadID);
-      }
-    } else {
-      await sendHelpText(api, threadID);
-    }
-    return;
-  }
-
-  if (command === 'stats') {
-    const stats = playerStats[senderID] || { wins: 0, losses: 0, draws: 0, played: 0 };
-    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
-
-    if (imageModeByThread[threadID]) {
-      const statsImage = await generateStatsImage(playerStats, senderID, usersData);
-      if (statsImage) {
-        await sendImage(api, threadID, statsImage);
-      } else {
-        await sendStatsText(api, threadID, userName, stats);
-      }
-    } else {
-      await sendStatsText(api, threadID, userName, stats);
-    }
-    return;
-  }
-
-  if (command === 'join' || command === 'out' || command === 'tournoi') {
-    return handleTournamentCommand(command, arg1, api, event, args, usersData);
-  }
-
-  if (command === 'ia' || command === 'ai') {
-    const diff = ['easy', 'normal', 'hard', 'facile', 'normal', 'dur'].includes(arg1) ? 
-      (arg1 === 'facile' ? 'easy' : arg1 === 'dur' ? 'hard' : arg1) : 'normal';
-    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
-
-    const bot = { 
-      id: 'AI', 
-      name: BOT_NAME
-    };
-
-    const human = { 
-      id: senderID, 
-      name: userName
-    };
-
-    const gameID = `${threadID}:ai:${senderID}`;
-    const imageMode = imageModeByThread[threadID] || false;
-
-    resetGame(gameID, human, bot, { 
-      isAI: true, 
-      aiDifficulty: diff, 
-      threadID,
-      imageMode 
-    });
-
-    if (imageMode) {
-      const boardImage = await generateBoardImage(
-        games[gameID].board,
-        games[gameID].players[0],
-        games[gameID].players,
-        usersData
-      );
-      await sendImage(api, threadID, boardImage,
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🎮 Partie contre IA (${diff})\n` +
-        `${human.name} ❌ vs ${bot.name} ⭕\n\n` +
-        `${human.name}, joue (1-9).\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`
-      );
-    } else {
-      await api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🎮 Partie contre IA (${diff})\n` +
-        `${human.name} ❌ vs ${bot.name} ⭕\n\n` +
-        `${displayBoard(games[gameID].board)}\n\n` +
-        `${human.name}, joue le premier coup (1-9).\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    if (games[gameID].players[games[gameID].currentPlayerIndex].id === 'AI') {
-      await applyAIMove(gameID, api, usersData);
-    }
-    return;
-  }
-
-  const knownCommands = ['help', 'stats', 'image', 'join', 'out', 'tournoi', 'ia', 'ai'];
-  if (!knownCommands.includes(command)) {
-    let targetID = null;
-    let targetName = null;
-
-    if (Object.keys(mentions).length > 0) {
-      const firstMention = Object.keys(mentions)[0];
-      targetID = firstMention;
-      targetName = mentions[firstMention].replace('@', '');
-    } else if (args[0]) {
-      const extracted = args[0].match(/\d+/);
-      if (extracted) {
-        targetID = extracted[0];
-        targetName = `Joueur ${targetID}`;
-      }
-    }
-
-    if (!targetID) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Mention invalide. Usage: \`ttt @joueur\`\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    if (targetID === senderID) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Vous ne pouvez pas jouer contre vous-même.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    const targetInGame = Object.values(games).some(g => 
-      g.threadID === threadID && 
-      g.players.some(p => p.id === targetID) && 
-      g.inProgress
-    );
-
-    if (targetInGame) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `⚠️ Le joueur ciblé est déjà en partie.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    const userName = await usersData.getName(senderID) || `Joueur ${senderID}`;
-    const opponentName = await usersData.getName(targetID) || targetName;
-
-    const player1 = { 
-      id: senderID, 
-      name: userName
-    };
-
-    const player2 = { 
-      id: targetID, 
-      name: opponentName
-    };
-
-    const gameID = `${threadID}:pvp:${senderID}:${targetID}`;
-    const imageMode = imageModeByThread[threadID] || false;
-
-    resetGame(gameID, player1, player2, { threadID, imageMode });
-
-    if (imageMode) {
-      const boardImage = await generateBoardImage(
-        games[gameID].board,
-        games[gameID].players[0],
-        games[gameID].players,
-        usersData,
-      );
-      await sendImage(api, threadID, boardImage,
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🎮 Nouvelle partie !\n` +
-        `${player1.name} ❌ vs ${player2.name} ⭕\n\n` +
-        `${player1.name}, joue (1-9).\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`
-      );
-    } else {
-      await api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🎮 Nouvelle partie !\n` +
-        `${player1.name} ❌ vs ${player2.name} ⭕\n\n` +
-        `${displayBoard(games[gameID].board)}\n\n` +
-        `${player1.name}, joue le premier coup (1-9).\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-    return;
-  }
-
-  return api.sendMessage(
-    `◆━━━━━▣✦▣━━━━━━◆\n` +
-    `❌ Commande introuvable. Tapez \`ttt help\`.\n` +
-    `◆━━━━━▣✦▣━━━━━━◆`,
-    threadID
-  );
-}
-
-async function handleTournamentCommand(command, arg1, api, event, args, usersData) {
-  const threadID = event.threadID;
-  const senderID = event.senderID;
-
-  if (!tournaments[threadID]) createTournament(threadID);
-  const tournament = tournaments[threadID];
-
-  if (command === 'join') {
-    if (tournament.status !== 'registration') {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Aucun tournoi en inscription actuellement.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    if (tournament.players.find(p => p.id === senderID)) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `⚠️ Vous êtes déjà inscrit.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    if (tournament.players.length >= tournament.requiredPlayers) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Tournoi complet (${tournament.requiredPlayers} joueurs max).\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    const playerName = await usersData.getName(senderID) || `Joueur ${senderID}`;
-    tournament.players.push({
-      id: senderID,
-      name: playerName
-    });
-
-    if (tournament.imageMode) {
-      const bracketImage = await generateTournamentBracketImage(tournament, usersData);
-      await sendImage(api, threadID, bracketImage,
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `✅ Inscription confirmée (${tournament.players.length}/${tournament.requiredPlayers})\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`
-      );
-    } else {
-      const bracketText = generateTournamentBracketText(tournament);
-      await api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `✅ Inscription confirmée (${tournament.players.length}/${tournament.requiredPlayers})\n\n` +
-        `${bracketText}`,
-        threadID
-      );
-    }
-    return;
-  }
-
-  if (command === 'out') {
-    if (tournament.status !== 'registration') {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Impossible de quitter, tournoi déjà démarré.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    const idx = tournament.players.findIndex(p => p.id === senderID);
-    if (idx === -1) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `⚠️ Vous n'êtes pas inscrit.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    tournament.players.splice(idx, 1);
-
-    if (tournament.imageMode) {
-      const bracketImage = await generateTournamentBracketImage(tournament, usersData);
-      await sendImage(api, threadID, bracketImage,
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🚪 Vous avez quitté le tournoi.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`
-      );
-    } else {
-      const bracketText = generateTournamentBracketText(tournament);
-      await api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `🚪 Vous avez quitté le tournoi.\n\n` +
-        `${bracketText}`,
-        threadID
-      );
-    }
-    return;
-  }
-
-  const subCommand = arg1;
-  if (subCommand === 'cancel') {
-    if (tournament.status !== 'registration') {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Impossible d'annuler, tournoi déjà démarré.\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    delete tournaments[threadID];
-    await api.sendMessage(
-      `◆━━━━━▣✦▣━━━━━━◆\n` +
-      `🗑️ Inscription au tournoi annulée.\n` +
-      `◆━━━━━▣✦▣━━━━━━◆`,
-      threadID
-    );
-    return;
-  }
-
-  if (subCommand === 'start') {
-    const num = tournament.players.length;
-    if (![4, 8, 16].includes(num)) {
-      return api.sendMessage(
-        `◆━━━━━▣✦▣━━━━━━◆\n` +
-        `❌ Il faut 4, 8 ou 16 joueurs pour démarrer. Actuels: ${num}\n` +
-        `◆━━━━━▣✦▣━━━━━━◆`,
-        threadID
-      );
-    }
-
-    tournament.requiredPlayers = num;
-    await startTournament(threadID, api, usersData);
-    return;
-  }
-
-  if (tournament.imageMode) {
-    const bracketImage = await generateTournamentBracketImage(tournament, usersData);
-    await sendImage(api, threadID, bracketImage,
-      `◆━━━━━▣✦▣━━━━━━◆\n` +
-      `🏆 TOURNOI MORPION\n` +
-      `Tapez \`ttt join\` pour participer !\n` +
-      `◆━━━━━▣✦▣━━━━━━◆`
-    );
-  } else {
-    const bracketText = generateTournamentBracketText(tournament);
-    await api.sendMessage(
-      `◆━━━━━▣✦▣━━━━━━◆\n` +
-      `🏆 TOURNOI MORPION\n\n` +
-      `${bracketText}\n\n` +
-      `Tapez \`ttt join\` pour participer !\n` +
-      `◆━━━━━▣✦▣━━━━━━◆`,
-      threadID
-    );
-  }
-}
-
-async function sendHelpText(api, threadID) {
-  const helpText =
-    `◆━━━━━▣✦▣━━━━━━◆\n` +
-    `🤖 TICTACTOE ULTIMATE - AIDE\n` +
-    `◆━━━━━▣✦▣━━━━━━◆\n\n` +
-    `🎮 JOUER:\n` +
-    `➲ \`ttt @joueur\` - 1v1 contre un ami\n` +
-    `➲ \`ttt ia [facile|normal|dur]\` - Contre l'IA\n` +
-    `➲ \`ttt\` - Afficher cette aide\n\n` +
-    `📊 STATISTIQUES:\n` +
-    `➲ \`ttt stats\` - Voir vos stats\n\n` +
-    `🏆 TOURNOI (4, 8 ou 16 joueurs):\n` +
-    `➲ \`ttt tournoi\` - Créer/afficher\n` +
-    `➲ \`ttt join\` - Rejoindre\n` +
-    `➲ \`ttt out\` - Quitter\n` +
-    `➲ \`ttt tournoi start\` - Démarrer\n\n` +
-    `🎨 AFFICHAGE:\n` +
-    `➲ \`ttt image on/off\` - Mode image\n\n` +
-    `🎯 EN JEU:\n` +
-    `➲ Choisir case (1-9)\n` +
-    `➲ \`forfait\` - Abandonner\n` +
-    `➲ \`restart\` - Rejouer (1v1 uniquement)\n` +
-    `◆━━━━━▣✦▣━━━━━━◆`;
-
-  await api.sendMessage(helpText, threadID);
-}
-
-async function sendStatsText(api, threadID, userName, stats) {
-  const winRate = stats.played > 0 ? Math.round((stats.wins / stats.played) * 100) : 0;
-  const statsText =
-    `◆━━━━━▣✦▣━━━━━━◆\n` +
-    `📊 STATISTIQUES de ${userName}\n` +
-    `◆━━━━━▣✦▣━━━━━━◆\n\n` +
-    `🏆 Victoires: ${stats.wins}\n` +
-    `💀 Défaites: ${stats.losses}\n` +
-    `🤝 Nuls: ${stats.draws}\n` +
-    `🎮 Parties: ${stats.played}\n` +
-    `📈 Ratio: ${winRate}%\n` +
-    `◆━━━━━▣✦▣━━━━━━◆`;
-
-  await api.sendMessage(statsText, threadID);
-}
